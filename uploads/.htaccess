@@ -1,0 +1,8 @@
+# Bloqueia listagem do diretório
+Options -Indexes
+
+# Bloqueia execução de PHP dentro de uploads
+<FilesMatch "\.(php|php3|php4|php5|phtml|pl|py|jsp|asp|sh|cgi)$">
+    Order Allow,Deny
+    Deny from all
+</FilesMatch>

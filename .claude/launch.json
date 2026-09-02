@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "helpti",
+      "runtimeExecutable": "php",
+      "runtimeArgs": ["-S", "localhost:8090", "-t", "/home/oezios/Documentos/helpti.alphaclinmais.net.br"],
+      "port": 8090
+    }
+  ]
+}

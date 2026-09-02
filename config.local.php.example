@@ -1,0 +1,17 @@
+<?php
+// ============================================================
+// CONFIGURAÇÕES LOCAIS — copie para config.local.php e preencha
+// config.local.php está no .gitignore e nunca deve ser commitado
+// ============================================================
+return [
+    'DB_HOST'        => 'localhost',
+    'DB_NAME'        => 'seu_banco',
+    'DB_USER'        => 'seu_usuario',
+    'DB_PASS'        => 'sua_senha_aqui',
+
+    'APP_URL'        => 'https://helpti.seudominio.com.br',
+    'APP_EMAIL_FROM' => 'HelpTI <noreply@seudominio.com.br>',
+    'APP_EMAIL_REPLY'=> 'noreply@seudominio.com.br',
+
+    'DEBUG_MODE'     => false,
+];

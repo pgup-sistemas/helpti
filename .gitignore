@@ -1,0 +1,29 @@
+# Configurações locais com credenciais — nunca commitar
+config.local.php
+.env
+
+# Uploads de usuários
+uploads/*.jpg
+uploads/*.jpeg
+uploads/*.png
+uploads/*.gif
+uploads/*.webp
+uploads/*.pdf
+
+# Cache e compilados
+__pycache__/
+*.pyc
+
+# Scans e dumps temporários — contêm topologia real da rede interna
+scan_rede_*.csv
+scan_ultimo.json
+*.bak
+
+# Dumps de banco de dados — podem conter dados reais de usuários (hashes de senha, e-mails, PII)
+*.sql
+!missing_tables.sql
+!migrations.sql
+
+# Sistema
+.DS_Store
+Thumbs.db
