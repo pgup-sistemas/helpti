@@ -486,9 +486,7 @@ if ($aba === 'ti' && $subaba === 'abrir'):
 ?>
 
 <div class="form-card">
-  <?php if ($chamado_sucesso):
-    $ac_link = APP_URL . '/portal.php?aba=ti&subaba=acompanhar&numero_chamado=' . urlencode($chamado_sucesso) . '&t=' . urlencode($chamado_sucesso_token);
-  ?>
+  <?php if ($chamado_sucesso): ?>
     <div class="success-box"
          data-registrar="ti"
          data-numero="<?= h($chamado_sucesso) ?>"
@@ -506,7 +504,7 @@ if ($aba === 'ti' && $subaba === 'abrir'):
         </button>
       <?php endif; ?>
       <div class="d-flex flex-column gap-2 mt-3 align-items-center">
-        <button type="button" class="btn-send copiavel" style="max-width:320px" data-copy="<?= h($ac_link) ?>" data-copy-label="Link copiado!">
+        <button type="button" class="btn-send copiavel" style="max-width:320px" data-copy-link="ti" data-copy="" data-copy-label="Link copiado!">
           <i class="bi bi-link-45deg me-1"></i>Copiar link de acompanhamento
         </button>
         <a href="?aba=ti&subaba=acompanhar&numero_chamado=<?= urlencode($chamado_sucesso) ?>&t=<?= urlencode($chamado_sucesso_token) ?>" class="text-primary fw-semibold" style="font-size:13px"><i class="bi bi-clock-history me-1"></i>Acompanhar este chamado agora</a>
@@ -754,9 +752,7 @@ elseif ($aba === 'sup' && $subaba === 'pedir'):
 ?>
 
 <div class="form-card">
-  <?php if ($sup_sucesso):
-    $ac_link_sup = APP_URL . '/portal.php?aba=sup&subaba=acompanhar&numero_sup=' . urlencode($sup_sucesso) . '&t=' . urlencode($sup_sucesso_token);
-  ?>
+  <?php if ($sup_sucesso): ?>
     <div class="success-box"
          data-registrar="sup"
          data-numero="<?= h($sup_sucesso) ?>"
@@ -774,7 +770,7 @@ elseif ($aba === 'sup' && $subaba === 'pedir'):
         </button>
       <?php endif; ?>
       <div class="d-flex flex-column gap-2 mt-3 align-items-center">
-        <button type="button" class="btn-send copiavel" style="max-width:320px" data-copy="<?= h($ac_link_sup) ?>" data-copy-label="Link copiado!">
+        <button type="button" class="btn-send copiavel" style="max-width:320px" data-copy-link="sup" data-copy="" data-copy-label="Link copiado!">
           <i class="bi bi-link-45deg me-1"></i>Copiar link de acompanhamento
         </button>
         <a href="?aba=sup&subaba=acompanhar&numero_sup=<?= urlencode($sup_sucesso) ?>&t=<?= urlencode($sup_sucesso_token) ?>" class="text-primary fw-semibold" style="font-size:13px"><i class="bi bi-clock-history me-1"></i>Acompanhar este pedido agora</a>
@@ -1064,6 +1060,17 @@ elseif ($aba === 'sup' && $subaba === 'acompanhar'):
   function ler() { try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } catch (e) { return []; } }
   function salvar(l) { try { localStorage.setItem(KEY, JSON.stringify(l.slice(0, 30))); } catch (e) {} }
 
+  // URL de acompanhamento — construída a partir da origem REAL onde o portal
+  // está sendo servido (não de APP_URL do PHP, que pode divergir).
+  function linkAcompanhamento(tipo, numero, token, absoluto) {
+    var pnum = tipo === 'ti' ? 'numero_chamado' : 'numero_sup';
+    var base = absoluto ? (location.origin + location.pathname) : location.pathname;
+    var qs = '?aba=' + (tipo === 'ti' ? 'ti' : 'sup') + '&subaba=acompanhar&' +
+             pnum + '=' + encodeURIComponent(numero) +
+             (token ? '&t=' + encodeURIComponent(token) : '');
+    return base + qs;
+  }
+
   // registra o item recém-aberto (data-registrar no .success-box)
   var box = document.querySelector('.success-box[data-registrar]');
   if (box && box.dataset.numero) {
@@ -1073,6 +1080,13 @@ elseif ($aba === 'sup' && $subaba === 'acompanhar'):
       token: box.dataset.token || '', ts: Date.now()
     });
     salvar(lista);
+
+    // preenche o botão "Copiar link de acompanhamento" com a URL absoluta correta
+    var btnLink = document.querySelector('[data-copy-link]');
+    if (btnLink) {
+      btnLink.setAttribute('data-copy',
+        linkAcompanhamento(btnLink.dataset.copyLink, box.dataset.numero, box.dataset.token, true));
+    }
   }
 
   function fmtData(ts) {
@@ -1086,10 +1100,8 @@ elseif ($aba === 'sup' && $subaba === 'acompanhar'):
     if (!wrap || !cont) return;
     var itens = ler().filter(function (i) { return i.tipo === tipo; });
     if (!itens.length) { wrap.style.display = 'none'; return; }
-    var pnum = tipo === 'ti' ? 'numero_chamado' : 'numero_sup';
     cont.innerHTML = itens.map(function (i) {
-      var url = '?aba=' + (tipo === 'ti' ? 'ti' : 'sup') + '&subaba=acompanhar&' + pnum + '=' +
-                encodeURIComponent(i.numero) + (i.token ? '&t=' + encodeURIComponent(i.token) : '');
+      var url = linkAcompanhamento(tipo, i.numero, i.token, false);
       return '<div class="meu-item-wrap" style="display:flex">' +
         '<a class="meu-item flex-grow-1" href="' + url + '">' +
           '<span><span class="mi-num">' + esc(i.numero) + '</span>' +
