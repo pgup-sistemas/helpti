@@ -119,14 +119,14 @@ $primeiro_nome = explode(' ', trim($u['nome']))[0];
 </div>
 <div class="row g-3 mb-3">
   <?php foreach([
-    ['Total','total','var(--brand)','bi-ticket-detailed'],
-    ['Abertos','abertos','#0ea5e9','bi-inbox-fill'],
-    ['Em andamento','andamento','#f59e0b','bi-arrow-repeat'],
-    ['Pendentes','pendentes','#ef4444','bi-exclamation-circle-fill'],
-    ['Concluídos','concluidos','#22c55e','bi-check-circle-fill'],
-  ] as [$lbl,$key,$cor,$ico]): ?>
+    ['Total','total','var(--brand)','bi-ticket-detailed','chamados.php?mes=&ano='],
+    ['Abertos','abertos','#0ea5e9','bi-inbox-fill','chamados.php?mes=&ano=&status=Aberto'],
+    ['Em andamento','andamento','#f59e0b','bi-arrow-repeat','chamados.php?mes=&ano=&status=Em+Andamento'],
+    ['Pendentes','pendentes','#ef4444','bi-exclamation-circle-fill','chamados.php?mes=&ano=&status=Pendente'],
+    ['Concluídos','concluidos','#22c55e','bi-check-circle-fill','chamados.php?mes=&ano=&status=Concluído'],
+  ] as [$lbl,$key,$cor,$ico,$link]): ?>
   <div class="col-6 col-md-4 col-lg">
-    <div class="stat-card">
+    <a href="<?= $link ?>" class="stat-card d-block text-decoration-none" style="color:inherit">
       <div class="d-flex justify-content-between align-items-start">
         <div>
           <div class="stat-num" style="color:<?= $cor ?>" data-stat="<?= $key ?>"><?= (int)$stats[$key] ?></div>
@@ -134,7 +134,7 @@ $primeiro_nome = explode(' ', trim($u['nome']))[0];
         </div>
         <i class="bi <?= $ico ?>" style="font-size:22px;color:<?= $cor ?>;opacity:.35"></i>
       </div>
-    </div>
+    </a>
   </div>
   <?php endforeach; ?>
 </div>
@@ -144,39 +144,23 @@ $primeiro_nome = explode(' ', trim($u['nome']))[0];
   <i class="bi bi-box-seam me-1"></i>Suprimentos
 </div>
 <div class="row g-3 mb-4">
+  <?php foreach([
+    ['Aguardando aprovação','pendentes','#f59e0b','bi-hourglass-split','pedidos_suprimentos.php?status=Pendente'],
+    ['Aprovados — a entregar','aprovados','#0ea5e9','bi-check2-square','pedidos_suprimentos.php?status=Aprovado'],
+    ['Entregues','entregues','#22c55e','bi-box-seam-fill','pedidos_suprimentos.php?status=Entregue'],
+  ] as [$lbl,$key,$cor,$ico,$link]): ?>
   <div class="col-6 col-md-4">
-    <div class="stat-card" style="border-top:3px solid #f59e0b">
+    <a href="<?= $link ?>" class="stat-card d-block text-decoration-none" style="border-top:3px solid <?= $cor ?>;color:inherit">
       <div class="d-flex justify-content-between align-items-start">
         <div>
-          <div class="stat-num" style="color:#f59e0b"><?= (int)$stats_sup['pendentes'] ?></div>
-          <div class="stat-label">Aguardando aprovação</div>
+          <div class="stat-num" style="color:<?= $cor ?>"><?= (int)$stats_sup[$key] ?></div>
+          <div class="stat-label"><?= $lbl ?></div>
         </div>
-        <i class="bi bi-hourglass-split" style="font-size:22px;color:#f59e0b;opacity:.35"></i>
+        <i class="bi <?= $ico ?>" style="font-size:22px;color:<?= $cor ?>;opacity:.35"></i>
       </div>
-    </div>
+    </a>
   </div>
-  <div class="col-6 col-md-4">
-    <div class="stat-card" style="border-top:3px solid #0ea5e9">
-      <div class="d-flex justify-content-between align-items-start">
-        <div>
-          <div class="stat-num" style="color:#0ea5e9"><?= (int)$stats_sup['aprovados'] ?></div>
-          <div class="stat-label">Aprovados — a entregar</div>
-        </div>
-        <i class="bi bi-check2-square" style="font-size:22px;color:#0ea5e9;opacity:.35"></i>
-      </div>
-    </div>
-  </div>
-  <div class="col-6 col-md-4">
-    <div class="stat-card" style="border-top:3px solid #22c55e">
-      <div class="d-flex justify-content-between align-items-start">
-        <div>
-          <div class="stat-num" style="color:#22c55e"><?= (int)$stats_sup['entregues'] ?></div>
-          <div class="stat-label">Entregues</div>
-        </div>
-        <i class="bi bi-box-seam-fill" style="font-size:22px;color:#22c55e;opacity:.35"></i>
-      </div>
-    </div>
-  </div>
+  <?php endforeach; ?>
 </div>
 
 <!-- ── Alertas prioritários ── -->
@@ -191,7 +175,7 @@ $primeiro_nome = explode(' ', trim($u['nome']))[0];
       <thead><tr><th>Nº</th><th>Descrição</th><th>Setor</th><th>Responsável</th><th>Aberto há</th><th></th></tr></thead>
       <tbody>
         <?php foreach ($urgentes as $urg): ?>
-        <tr>
+        <tr data-href="chamado.php?id=<?= $urg['id'] ?>">
           <td><code style="font-size:12px"><?= h($urg['numero']) ?></code></td>
           <td style="max-width:200px"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><?= h($urg['descricao']) ?></div></td>
           <td style="font-size:12px"><?= h($urg['setor']) ?></td>
@@ -296,7 +280,7 @@ $primeiro_nome = explode(' ', trim($u['nome']))[0];
       <thead><tr><th>Código</th><th>Setor</th><th>Solicitante</th><th>Itens</th><th>Status</th><th>Data</th><th></th></tr></thead>
       <tbody>
         <?php foreach ($sup_pendentes as $sp): ?>
-        <tr>
+        <tr data-href="pedidos_suprimentos.php?status=<?= $sp['status']==='Pendente'?'Pendente':'Aprovado' ?>">
           <td><code style="font-size:12px"><?= h($sp['numero']) ?></code></td>
           <td style="font-size:12px"><?= h($sp['setor']) ?></td>
           <td><?= h($sp['solicitante']) ?></td>
@@ -330,7 +314,7 @@ $primeiro_nome = explode(' ', trim($u['nome']))[0];
       <thead><tr><th>Nº</th><th>Descrição</th><th>Setor</th><th>Status</th><th>Data</th><th></th></tr></thead>
       <tbody>
         <?php foreach ($meusChamados as $c): ?>
-        <tr>
+        <tr data-href="chamado.php?id=<?= $c['id'] ?>">
           <td><code style="font-size:12px"><?= h($c['numero']) ?></code></td>
           <td style="max-width:220px"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="<?= h($c['descricao']) ?>"><?= h($c['descricao']) ?></div></td>
           <td style="font-size:12px"><?= h($c['setor']) ?></td>
@@ -364,7 +348,7 @@ $primeiro_nome = explode(' ', trim($u['nome']))[0];
       </thead>
       <tbody>
         <?php foreach ($recentes as $c): ?>
-        <tr>
+        <tr data-href="chamado.php?id=<?= $c['id'] ?>">
           <td><code style="font-size:12px"><?= h($c['numero']) ?></code></td>
           <td style="max-width:200px"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="<?= h($c['descricao']) ?>"><?= h($c['descricao']) ?></div></td>
           <td style="font-size:12px"><?= h($c['setor']) ?></td>
