@@ -132,9 +132,10 @@ body.sidebar-collapsed .nav-section .nav-sec-arrow{display:none}
   .table-sortable thead th{position:static}
 }
 
-/* Linhas de tabela clicáveis (data-href) */
+/* Linhas / cartões clicáveis (data-href) */
 tr[data-href]{cursor:pointer}
 tr[data-href]:hover td{background:var(--bg-hover)}
+[data-href].row-link{cursor:pointer}
 
 /* Botão de copiar (IP, número de série etc.) */
 .btn-copy{background:none;border:none;padding:0 2px;color:var(--tx-faint);cursor:pointer;font-size:11px;vertical-align:middle;transition:.15s}
@@ -867,7 +868,7 @@ function layoutFooter(): void {
   // ── Linhas de tabela clicáveis (<tr data-href="...">) ──────
   // Clique na linha navega; cliques em links/botões/forms/dropdowns são ignorados.
   document.addEventListener('click', function (e) {
-    const tr = e.target.closest('tr[data-href]');
+    const tr = e.target.closest('tr[data-href], [data-href].row-link');
     if (!tr) return;
     if (e.target.closest('a, button, input, select, label, form, .dropdown')) return;
     if (window.getSelection && String(window.getSelection())) return; // não navega ao selecionar texto

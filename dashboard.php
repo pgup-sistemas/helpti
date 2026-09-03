@@ -163,207 +163,177 @@ $primeiro_nome = explode(' ', trim($u['nome']))[0];
   <?php endforeach; ?>
 </div>
 
-<!-- ── Alertas prioritários ── -->
-<?php if ($urgentes): ?>
-<div class="card mb-4">
-  <div class="card-header card-header-danger d-flex align-items-center gap-2">
-    <i class="bi bi-exclamation-octagon-fill"></i>
-    <strong>Atenção — <?= count($urgentes) ?> chamado(s) Alta Complexidade há mais de 2h</strong>
-  </div>
-  <div class="table-responsive">
-    <table class="table mb-0">
-      <thead><tr><th>Nº</th><th>Descrição</th><th>Setor</th><th>Responsável</th><th>Aberto há</th><th class="text-end">Ações</th></tr></thead>
-      <tbody>
-        <?php foreach ($urgentes as $urg): ?>
-        <tr data-href="chamado.php?id=<?= $urg['id'] ?>">
-          <td><code style="font-size:12px"><?= h($urg['numero']) ?></code></td>
-          <td style="max-width:200px"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><?= h($urg['descricao']) ?></div></td>
-          <td style="font-size:12px"><?= h($urg['setor']) ?></td>
-          <td><?= $urg['resp_nome'] ? h($urg['resp_nome']) : '<span class="text-danger fw-semibold">Sem responsável</span>' ?></td>
-          <td class="tx-danger" style="font-size:12px;white-space:nowrap">
-            <?php $diff = time()-strtotime($urg['criado_em']); $h=floor($diff/3600); $m=floor(($diff%3600)/60); echo "{$h}h {$m}min"; ?>
-          </td>
-          <td class="text-end"><a href="chamado.php?id=<?= $urg['id'] ?>" class="btn btn-outline-primary btn-xs">Atender</a></td>
-        </tr>
-        <?php endforeach; ?>
-      </tbody>
-    </table>
-  </div>
-</div>
-<?php endif; ?>
+<style>
+.dash-list{display:flex;flex-direction:column}
+.dash-row{display:flex;align-items:center;gap:10px;padding:.6rem .9rem;border-bottom:1px solid var(--border);transition:background .12s}
+.dash-row:last-child{border-bottom:none}
+.dash-row.row-link:hover{background:var(--bg-hover)}
+.dash-row .dash-main{flex:1 1 auto;min-width:0}
+.dash-code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-weight:700;font-size:12px;color:var(--brand)}
+.dash-desc{font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dash-sub{font-size:11.5px;color:var(--text-muted,#6c757d);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.dash-when{font-size:11.5px;white-space:nowrap;flex-shrink:0}
+.card-head-min{display:flex;justify-content:space-between;align-items:center;font-weight:600;font-size:13.5px}
+</style>
 
-<?php if ($sem_resp > 0): ?>
-<div class="alert alert-warning d-flex align-items-center mb-4" style="font-size:13.5px">
-  <i class="bi bi-exclamation-triangle-fill me-2"></i>
-  <div><strong><?= $sem_resp ?> chamado(s)</strong> abertos sem responsável.
-    <a href="chamados.php?status=Aberto&resp=0" class="ms-2 fw-semibold">Atribuir agora →</a>
+<!-- ── Precisa de atenção ── -->
+<?php if ($urgentes || $sem_resp > 0): ?>
+<div class="card mb-4" style="border-left:3px solid #ef4444">
+  <div class="card-header d-flex align-items-center gap-2">
+    <i class="bi bi-exclamation-octagon-fill text-danger"></i>
+    <strong>Precisa de atenção</strong>
   </div>
-</div>
-<?php endif; ?>
-
-<?php if ($termos_alerta): ?>
-<div class="card mb-4">
-  <div class="card-header card-header-danger d-flex align-items-center gap-2">
-    <i class="bi bi-person-exclamation-fill"></i>
-    <strong>Empréstimos vencidos ou a vencer (7 dias)</strong>
-  </div>
-  <div class="card-body p-0">
-    <?php foreach ($termos_alerta as $tr):
-      $prev = new DateTime($tr['data_prevista_devolucao']);
-      $diff = (int)(new DateTime())->diff($prev)->format('%r%a');
-    ?>
-    <div class="d-flex align-items-center justify-content-between px-4 py-2 border-bottom" style="gap:12px">
-      <div>
-        <i class="bi bi-laptop me-2" style="color:#E63946"></i>
-        <strong><?= h("{$tr['marca']} {$tr['modelo']}") ?></strong>
-        <span class="text-muted" style="font-size:12px"> · <?= h($tr['tipo']) ?></span>
-        <span class="text-muted" style="font-size:12px"> · <i class="bi bi-person me-1"></i><?= h($tr['responsavel_nome']) ?><?= $tr['setor'] ? ' · '.h($tr['setor']) : '' ?></span>
+  <div class="dash-list">
+    <?php foreach ($urgentes as $urg):
+      $diff = time()-strtotime($urg['criado_em']); $uh=floor($diff/3600); $um=floor(($diff%3600)/60); ?>
+    <div class="dash-row row-link" data-href="chamado.php?id=<?= $urg['id'] ?>">
+      <div class="dash-main">
+        <span class="dash-code"><?= h($urg['numero']) ?></span>
+        <span class="dash-desc d-inline-block align-bottom" style="max-width:60%"> · <?= h($urg['descricao']) ?></span>
+        <div class="dash-sub">
+          <span class="badge badge-nivel-alta">Alta Complexidade</span>
+          · aberto há <?= "{$uh}h {$um}min" ?> · <?= h($urg['setor']) ?>
+          <?= $urg['resp_nome'] ? ' · '.h($urg['resp_nome']) : ' · <span class="text-danger fw-semibold">sem responsável</span>' ?>
+        </div>
       </div>
-      <div class="<?= $diff<0 ? 'tx-danger' : 'tx-warning' ?>" style="white-space:nowrap;font-size:12px">
-        <?php if ($diff < 0): ?>
-          <i class="bi bi-exclamation-triangle-fill me-1"></i>Vencido há <strong><?= abs($diff) ?></strong> dia(s)
-        <?php else: ?>
-          <i class="bi bi-clock me-1"></i>Vence em <strong><?= $diff ?></strong> dia(s) — <?= $prev->format('d/m/Y') ?>
-        <?php endif; ?>
-      </div>
-      <a href="termos.php" class="btn btn-outline-primary btn-xs flex-shrink-0">Devolver</a>
+      <a href="chamado.php?id=<?= $urg['id'] ?>" class="btn btn-outline-primary btn-xs flex-shrink-0">Atender</a>
     </div>
     <?php endforeach; ?>
+    <?php if ($sem_resp > 0): ?>
+    <div class="dash-row row-link" data-href="chamados.php?status=Aberto&resp=0">
+      <div class="dash-main"><i class="bi bi-person-dash text-warning me-2"></i><strong><?= $sem_resp ?></strong> chamado(s) aberto(s) sem responsável</div>
+      <a href="chamados.php?status=Aberto&resp=0" class="btn btn-outline-primary btn-xs flex-shrink-0">Atribuir</a>
+    </div>
+    <?php endif; ?>
   </div>
 </div>
 <?php endif; ?>
 
-<?php if ($contratos_alerta || $garantias_alerta): ?>
-<div class="card mb-4">
-  <div class="card-header card-header-warning d-flex align-items-center gap-2">
-    <i class="bi bi-bell-fill"></i>
-    <strong>Lembretes — contratos e garantias</strong>
-  </div>
-  <div class="card-body p-0">
-    <?php foreach ($contratos_alerta as $ct):
-      $dias = (int)ceil((strtotime($ct['data_vencimento']) - time()) / 86400);
-    ?>
-    <div class="d-flex align-items-center justify-content-between px-4 py-2 border-bottom" style="gap:12px">
-      <div><i class="bi bi-file-earmark-check me-2 text-warning"></i>
-        <strong><?= h($ct['nome']) ?></strong>
-        <span class="text-muted" style="font-size:12px"> · <?= h($ct['tipo']) ?> · <?= h($ct['fornecedor']) ?></span>
-      </div>
-      <div class="tx-warning" style="white-space:nowrap;font-size:12px"><i class="bi bi-clock me-1"></i>Vence em <strong><?= $dias ?></strong> dia(s) — <?= date('d/m/Y', strtotime($ct['data_vencimento'])) ?></div>
-      <a href="contratos.php?action=editar&id=<?= $ct['id'] ?>" class="btn btn-outline-primary btn-xs flex-shrink-0">Renovar</a>
-    </div>
-    <?php endforeach; ?>
-    <?php foreach ($garantias_alerta as $ga):
-      $dias = (int)ceil((strtotime($ga['garantia_ate']) - time()) / 86400);
-    ?>
-    <div class="d-flex align-items-center justify-content-between px-4 py-2 border-bottom" style="gap:12px">
-      <div><i class="bi bi-shield-exclamation me-2 text-warning"></i>
-        <strong><?= h("{$ga['marca']} {$ga['modelo']}") ?></strong>
-        <span class="text-muted" style="font-size:12px"> · <?= h($ga['tipo']) ?> · S/N: <?= h($ga['numero_serie']) ?></span>
-      </div>
-      <div class="tx-warning" style="white-space:nowrap;font-size:12px"><i class="bi bi-shield me-1"></i>Garantia em <strong><?= $dias ?></strong> dia(s) — <?= date('d/m/Y', strtotime($ga['garantia_ate'])) ?></div>
-      <a href="inventario.php?action=editar&id=<?= $ga['id'] ?>" class="btn btn-outline-primary btn-xs flex-shrink-0">Ver</a>
-    </div>
-    <?php endforeach; ?>
-  </div>
-</div>
-<?php endif; ?>
+<div class="row g-4">
+  <!-- ── Coluna principal ── -->
+  <div class="col-lg-8">
 
-<!-- ── Suprimentos pendentes de ação ── -->
-<?php if ($sup_pendentes): ?>
-<div class="card mb-4">
-  <div class="card-header card-header-warning d-flex justify-content-between align-items-center">
-    <span><i class="bi bi-box-seam-fill me-2"></i>Pedidos de suprimentos aguardando ação</span>
-    <a href="pedidos_suprimentos.php" class="btn btn-outline-secondary btn-xs">Ver todos</a>
-  </div>
-  <div class="table-responsive">
-    <table class="table table-hover mb-0">
-      <thead><tr><th>Código</th><th>Setor</th><th>Solicitante</th><th>Itens</th><th>Status</th><th>Data</th><th class="text-end">Ações</th></tr></thead>
-      <tbody>
-        <?php foreach ($sup_pendentes as $sp): ?>
-        <tr data-href="pedidos_suprimentos.php?status=<?= $sp['status']==='Pendente'?'Pendente':'Aprovado' ?>">
-          <td><code style="font-size:12px"><?= h($sp['numero']) ?></code></td>
-          <td style="font-size:12px"><?= h($sp['setor']) ?></td>
-          <td><?= h($sp['solicitante']) ?></td>
-          <td style="text-align:center"><span class="badge bg-light text-dark border"><?= $sp['total_itens'] ?></span></td>
-          <td>
-            <?php if ($sp['status']==='Pendente'): ?>
-              <span class="badge-pending">Pendente</span>
-            <?php else: ?>
-              <span class="badge-approved">Aprovado</span>
+    <div class="card mb-4">
+      <div class="card-header"><i class="bi bi-graph-up me-2 text-primary"></i>Chamados — últimos 30 dias</div>
+      <div class="card-body" style="height:180px"><canvas id="chartDash"></canvas></div>
+    </div>
+
+    <div class="card mb-0">
+      <div class="card-header card-head-min">
+        <span><i class="bi bi-list-task me-2 text-primary"></i>Chamados abertos / em andamento</span>
+        <a href="chamados.php" class="btn btn-outline-secondary btn-xs">Ver todos</a>
+      </div>
+      <div class="table-responsive">
+        <table class="table table-hover mb-0">
+          <thead>
+            <tr><th>Nº</th><th>Descrição</th><th>Setor</th><th>Responsável</th><th>Status</th><th>Data</th><th class="text-end">Ações</th></tr>
+          </thead>
+          <tbody>
+            <?php foreach ($recentes as $c): ?>
+            <tr data-href="chamado.php?id=<?= $c['id'] ?>">
+              <td><code style="font-size:12px"><?= h($c['numero']) ?></code></td>
+              <td style="max-width:220px"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="<?= h($c['descricao']) ?>"><?= h($c['descricao']) ?></div></td>
+              <td style="font-size:12px"><?= h($c['setor']) ?></td>
+              <td><?= $c['resp_nome'] ? h($c['resp_nome']) : '<span class="text-danger">—</span>' ?></td>
+              <td><?= badgeStatus($c['status']) ?></td>
+              <td style="font-size:12px;white-space:nowrap"><?= date('d/m H:i', strtotime($c['criado_em'])) ?></td>
+              <td class="text-end"><a href="chamado.php?id=<?= $c['id'] ?>" class="btn btn-outline-primary btn-xs">Abrir</a></td>
+            </tr>
+            <?php endforeach; ?>
+            <?php if (!$recentes): ?>
+            <tr><td colspan="7" class="text-center text-muted py-4">Nenhum chamado aberto no momento 🎉</td></tr>
             <?php endif; ?>
-          </td>
-          <td style="font-size:12px;white-space:nowrap"><?= date('d/m H:i', strtotime($sp['criado_em'])) ?></td>
-          <td class="text-end"><a href="pedidos_suprimentos.php" class="btn btn-outline-primary btn-xs">Ação</a></td>
-        </tr>
-        <?php endforeach; ?>
-      </tbody>
-    </table>
-  </div>
-</div>
-<?php endif; ?>
+          </tbody>
+        </table>
+      </div>
+    </div>
 
-<!-- ── Meus chamados (qualquer perfil atribuído como responsável) ── -->
-<?php if (!empty($meusChamados)): ?>
-<div class="card mb-4">
-  <div class="card-header card-header-success d-flex justify-content-between align-items-center">
-    <span><i class="bi bi-person-check-fill me-2"></i>Meus chamados em aberto</span>
-    <span class="badge bg-success"><?= count($meusChamados) ?></span>
   </div>
-  <div class="table-responsive">
-    <table class="table table-hover mb-0">
-      <thead><tr><th>Nº</th><th>Descrição</th><th>Setor</th><th>Status</th><th>Data</th><th class="text-end">Ações</th></tr></thead>
-      <tbody>
+
+  <!-- ── Coluna lateral ── -->
+  <div class="col-lg-4">
+
+    <?php if (!empty($meusChamados)): ?>
+    <div class="card mb-4">
+      <div class="card-header card-head-min">
+        <span><i class="bi bi-person-check-fill me-2 text-success"></i>Meus chamados</span>
+        <span class="badge bg-secondary"><?= count($meusChamados) ?></span>
+      </div>
+      <div class="dash-list">
         <?php foreach ($meusChamados as $c): ?>
-        <tr data-href="chamado.php?id=<?= $c['id'] ?>">
-          <td><code style="font-size:12px"><?= h($c['numero']) ?></code></td>
-          <td style="max-width:220px"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="<?= h($c['descricao']) ?>"><?= h($c['descricao']) ?></div></td>
-          <td style="font-size:12px"><?= h($c['setor']) ?></td>
-          <td><?= badgeStatus($c['status']) ?></td>
-          <td style="font-size:12px;white-space:nowrap"><?= date('d/m H:i', strtotime($c['criado_em'])) ?></td>
-          <td class="text-end"><a href="chamado.php?id=<?= $c['id'] ?>" class="btn btn-outline-primary btn-xs">Abrir</a></td>
-        </tr>
+        <div class="dash-row row-link" data-href="chamado.php?id=<?= $c['id'] ?>">
+          <div class="dash-main">
+            <span class="dash-code"><?= h($c['numero']) ?></span> <?= badgeStatus($c['status']) ?>
+            <div class="dash-sub"><?= h($c['descricao']) ?></div>
+          </div>
+        </div>
         <?php endforeach; ?>
-      </tbody>
-    </table>
-  </div>
-</div>
-<?php endif; ?>
+      </div>
+    </div>
+    <?php endif; ?>
 
-<!-- ── Gráfico ── -->
-<div class="card mb-4">
-  <div class="card-header"><span><i class="bi bi-graph-up me-2 text-primary"></i>Chamados — últimos 30 dias</span></div>
-  <div class="card-body" style="height:180px"><canvas id="chartDash"></canvas></div>
-</div>
-
-<!-- ── Chamados em aberto / andamento (último bloco) ── -->
-<div class="card mb-0">
-  <div class="card-header d-flex justify-content-between align-items-center">
-    <span><i class="bi bi-list-task me-2 text-primary"></i>Chamados abertos / em andamento</span>
-    <a href="chamados.php" class="btn btn-outline-secondary btn-xs">Ver todos</a>
-  </div>
-  <div class="table-responsive">
-    <table class="table table-hover mb-0">
-      <thead>
-        <tr><th>Nº</th><th>Descrição</th><th>Setor</th><th>Solicitante</th><th>Responsável</th><th>Status</th><th>Data</th><th class="text-end">Ações</th></tr>
-      </thead>
-      <tbody>
-        <?php foreach ($recentes as $c): ?>
-        <tr data-href="chamado.php?id=<?= $c['id'] ?>">
-          <td><code style="font-size:12px"><?= h($c['numero']) ?></code></td>
-          <td style="max-width:200px"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="<?= h($c['descricao']) ?>"><?= h($c['descricao']) ?></div></td>
-          <td style="font-size:12px"><?= h($c['setor']) ?></td>
-          <td><?= h($c['solicitante']) ?></td>
-          <td><?= $c['resp_nome'] ? h($c['resp_nome']) : '<span class="text-danger">—</span>' ?></td>
-          <td><?= badgeStatus($c['status']) ?></td>
-          <td style="font-size:12px;white-space:nowrap"><?= date('d/m H:i', strtotime($c['criado_em'])) ?></td>
-          <td class="text-end"><a href="chamado.php?id=<?= $c['id'] ?>" class="btn btn-outline-primary btn-xs">Abrir</a></td>
-        </tr>
+    <?php if ($sup_pendentes): ?>
+    <div class="card mb-4">
+      <div class="card-header card-head-min">
+        <span><i class="bi bi-box-seam-fill me-2 text-warning"></i>Suprimentos aguardando ação</span>
+        <a href="pedidos_suprimentos.php" class="btn btn-outline-secondary btn-xs">Ver todos</a>
+      </div>
+      <div class="dash-list">
+        <?php foreach ($sup_pendentes as $sp): ?>
+        <div class="dash-row row-link" data-href="pedidos_suprimentos.php?status=<?= $sp['status']==='Pendente'?'Pendente':'Aprovado' ?>">
+          <div class="dash-main">
+            <span class="dash-code"><?= h($sp['numero']) ?></span>
+            <?= $sp['status']==='Pendente' ? '<span class="badge-pending">Pendente</span>' : '<span class="badge-approved">Aprovado</span>' ?>
+            <div class="dash-sub"><?= h($sp['setor']) ?> · <?= (int)$sp['total_itens'] ?> item(s) · <?= h($sp['solicitante']) ?></div>
+          </div>
+          <span class="dash-when text-muted"><?= date('d/m', strtotime($sp['criado_em'])) ?></span>
+        </div>
         <?php endforeach; ?>
-        <?php if (!$recentes): ?>
-        <tr><td colspan="8" class="text-center text-muted py-4">Nenhum chamado aberto no momento 🎉</td></tr>
-        <?php endif; ?>
-      </tbody>
-    </table>
+      </div>
+    </div>
+    <?php endif; ?>
+
+    <?php if ($termos_alerta || $contratos_alerta || $garantias_alerta): ?>
+    <div class="card mb-4">
+      <div class="card-header"><i class="bi bi-bell-fill me-2 text-warning"></i>Lembretes</div>
+      <div class="dash-list">
+        <?php foreach ($termos_alerta as $tr):
+          $prev = new DateTime($tr['data_prevista_devolucao']);
+          $diff = (int)(new DateTime())->diff($prev)->format('%r%a'); ?>
+        <div class="dash-row row-link" data-href="termos.php">
+          <div class="dash-main">
+            <i class="bi bi-laptop me-1" style="color:#E63946"></i><strong><?= h("{$tr['marca']} {$tr['modelo']}") ?></strong>
+            <div class="dash-sub">Empréstimo · <?= h($tr['responsavel_nome']) ?><?= $tr['setor'] ? ' · '.h($tr['setor']) : '' ?></div>
+          </div>
+          <span class="dash-when <?= $diff<0 ? 'tx-danger' : 'tx-warning' ?>">
+            <?= $diff<0 ? 'venc. há '.abs($diff).'d' : $prev->format('d/m') ?>
+          </span>
+        </div>
+        <?php endforeach; ?>
+        <?php foreach ($contratos_alerta as $ct):
+          $dias = (int)ceil((strtotime($ct['data_vencimento']) - time()) / 86400); ?>
+        <div class="dash-row row-link" data-href="contratos.php?action=editar&id=<?= $ct['id'] ?>">
+          <div class="dash-main">
+            <i class="bi bi-file-earmark-check me-1 text-warning"></i><strong><?= h($ct['nome']) ?></strong>
+            <div class="dash-sub">Contrato · <?= h($ct['tipo']) ?> · <?= h($ct['fornecedor']) ?></div>
+          </div>
+          <span class="dash-when tx-warning"><?= $dias ?>d · <?= date('d/m', strtotime($ct['data_vencimento'])) ?></span>
+        </div>
+        <?php endforeach; ?>
+        <?php foreach ($garantias_alerta as $ga):
+          $dias = (int)ceil((strtotime($ga['garantia_ate']) - time()) / 86400); ?>
+        <div class="dash-row row-link" data-href="inventario.php?action=editar&id=<?= $ga['id'] ?>">
+          <div class="dash-main">
+            <i class="bi bi-shield-exclamation me-1 text-warning"></i><strong><?= h("{$ga['marca']} {$ga['modelo']}") ?></strong>
+            <div class="dash-sub">Garantia · <?= h($ga['tipo']) ?> · S/N <?= h($ga['numero_serie']) ?></div>
+          </div>
+          <span class="dash-when tx-warning"><?= $dias ?>d · <?= date('d/m', strtotime($ga['garantia_ate'])) ?></span>
+        </div>
+        <?php endforeach; ?>
+      </div>
+    </div>
+    <?php endif; ?>
+
   </div>
 </div>
 
