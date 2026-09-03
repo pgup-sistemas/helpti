@@ -91,7 +91,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 layoutHeader('Editar Manutenção', 'manutencoes');
 ?>
 
-<?php breadcrumb([['label'=>'Impressoras','href'=>'impressoras.php'],['label'=>h($manut['impressora_nome']),'href'=>'impressora.php?id='.$manut['impressora_id']],['label'=>'Editar Manutenção']]); ?>
+<?php breadcrumb([['label'=>'Impressoras','href'=>'impressoras.php'],['label'=>$manut['impressora_nome'],'href'=>'impressora.php?id='.$manut['impressora_id']],['label'=>'Editar Manutenção']]); ?>
 
 <div class="page-header mt-1">
   <h1 class="page-title"><i class="bi bi-pencil-square me-2 text-primary"></i>Editar Registro de Manutenção</h1>

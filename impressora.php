@@ -126,7 +126,7 @@ function badgeStatusSuprimento(string $s): string {
 }
 ?>
 
-<?php breadcrumb([['label'=>'Impressoras','href'=>'impressoras.php'],['label'=>h($imp['nome'])]]); ?>
+<?php breadcrumb([['label'=>'Impressoras','href'=>'impressoras.php'],['label'=>$imp['nome']]]); ?>
 
 <div class="page-header mt-1">
   <h1 class="page-title">

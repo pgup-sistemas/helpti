@@ -108,7 +108,7 @@ layoutHeader('Base de Conhecimento', 'kb');
 <?php endif; ?>
 
 <?php /* ── VER ARTIGO ── */ if ($action === 'ver' && $artigo): ?>
-<?php breadcrumb([['label'=>'Base de Conhecimento','href'=>'kb.php'],['label'=>h($artigo['titulo'])]]); ?>
+<?php breadcrumb([['label'=>'Base de Conhecimento','href'=>'kb.php'],['label'=>$artigo['titulo']]]); ?>
 <div class="card mb-4">
   <div class="card-header d-flex justify-content-between align-items-center">
     <div>
