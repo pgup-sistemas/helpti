@@ -62,7 +62,7 @@ layoutHeader('Editar Chamado ' . $chamado['numero'], 'chamados');
   <h1 class="page-title"><i class="bi bi-pencil-square me-2 text-primary"></i>Editar Chamado <code style="font-size:16px"><?= h($chamado['numero']) ?></code></h1>
 </div>
 
-<div class="card" style="max-width: 700px;">
+<div class="card">
   <div class="card-body">
     <?php if ($erros): ?>
       <div class="alert alert-danger py-2 px-3 mb-3" style="font-size:13px">

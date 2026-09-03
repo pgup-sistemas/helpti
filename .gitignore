@@ -9,6 +9,7 @@ uploads/*.png
 uploads/*.gif
 uploads/*.webp
 uploads/*.pdf
+uploads/contratos/*
 
 # Cache e compilados
 __pycache__/
@@ -21,8 +22,11 @@ scan_ultimo.json
 
 # Dumps de banco de dados — podem conter dados reais de usuários (hashes de senha, e-mails, PII)
 *.sql
-!missing_tables.sql
-!migrations.sql
+!database/migrations/*.sql
+
+# Logs de aplicação e arquivos arquivados localmente (fora do controle de versão)
+logs/
+_local_arquivado/
 
 # Sistema
 .DS_Store

@@ -8,19 +8,7 @@ $u      = usuario();
 $action = $_POST['action'] ?? $_GET['action'] ?? '';
 $id     = (int)($_POST['id'] ?? $_GET['id'] ?? 0);
 
-// Garante a tabela de histórico de renovações
-$pdo->exec("CREATE TABLE IF NOT EXISTS `contratos_renovacoes` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `contrato_id` int NOT NULL,
-  `data_anterior` date NOT NULL,
-  `data_nova` date NOT NULL,
-  `tipo` enum('auto','manual') NOT NULL,
-  `usuario_id` int DEFAULT NULL,
-  `criado_em` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`),
-  KEY `idx_contrato` (`contrato_id`),
-  CONSTRAINT `fk_renov_contrato` FOREIGN KEY (`contrato_id`) REFERENCES `contratos` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+// Schema de contratos_renovacoes em database/migrations/ — sem DDL em runtime.
 
 // ── Renovação manual (botão dedicado, com escolha de período) ──
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'renovar') {
@@ -70,20 +58,74 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action !== 'renovar') {
         'corpo'            => trim($_POST['corpo'] ?? ''),
     ];
 
-    if (!$campos['nome'] || !$campos['data_vencimento']) {
+    // ── Upload do arquivo do contrato (PDF/imagem) ──────────────
+    $upload_erro = null;
+    $arquivo_url_atual = null;
+    if ($action === 'editar' && $id) {
+        $arquivo_url_atual = $pdo->prepare("SELECT arquivo_url FROM contratos WHERE id=?");
+        $arquivo_url_atual->execute([$id]);
+        $arquivo_url_atual = $arquivo_url_atual->fetchColumn();
+    }
+    $campos['arquivo_url'] = $arquivo_url_atual;
+
+    if (!empty($_FILES['arquivo']['name']) && $_FILES['arquivo']['error'] !== UPLOAD_ERR_NO_FILE) {
+        $f = $_FILES['arquivo'];
+        if ($f['error'] !== UPLOAD_ERR_OK) {
+            $upload_erro = match ($f['error']) {
+                UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE =>
+                    'Arquivo excede o limite permitido pelo servidor (' . ini_get('upload_max_filesize') . '). Peça ao administrador para aumentar upload_max_filesize/post_max_size.',
+                UPLOAD_ERR_PARTIAL   => 'O upload foi interrompido no meio do envio. Tente novamente.',
+                UPLOAD_ERR_NO_TMP_DIR => 'Erro no servidor: pasta temporária de upload não configurada.',
+                UPLOAD_ERR_CANT_WRITE => 'Erro no servidor: não foi possível gravar o arquivo temporário.',
+                UPLOAD_ERR_EXTENSION  => 'Uma extensão do PHP interrompeu o upload.',
+                default => 'Erro no upload do arquivo (código ' . $f['error'] . ').',
+            };
+        } elseif ($f['size'] > 10 * 1024 * 1024) {
+            $upload_erro = 'Arquivo excede o limite de 10 MB.';
+        } else {
+            $allowed_mimes = ['application/pdf'=>'pdf','image/jpeg'=>'jpg','image/png'=>'png'];
+            $real_mime = (new finfo(FILEINFO_MIME_TYPE))->file($f['tmp_name']);
+            if (!array_key_exists($real_mime, $allowed_mimes)) {
+                $upload_erro = 'Tipo de arquivo inválido. Envie PDF, JPG ou PNG.';
+            } else {
+                $dir = 'uploads/contratos';
+                if (!is_dir($dir)) mkdir($dir, 0755, true);
+                $ext  = $allowed_mimes[$real_mime];
+                $dest = $dir . '/contrato_' . bin2hex(random_bytes(16)) . '.' . $ext;
+                if (move_uploaded_file($f['tmp_name'], $dest)) {
+                    // Remove o arquivo anterior, se houver
+                    if ($arquivo_url_atual && file_exists($arquivo_url_atual)) unlink($arquivo_url_atual);
+                    $campos['arquivo_url'] = $dest;
+                } else {
+                    $upload_erro = 'Não foi possível salvar o arquivo enviado.';
+                }
+            }
+        }
+    } elseif (!empty($_POST['remover_arquivo']) && $arquivo_url_atual) {
+        if (file_exists($arquivo_url_atual)) unlink($arquivo_url_atual);
+        $campos['arquivo_url'] = null;
+    }
+
+    if ($action === 'excluir' && $id) {
+        // Exclusão não depende de nome/data — checada antes da validação dos demais campos
+        $arq = $pdo->prepare("SELECT arquivo_url FROM contratos WHERE id=?");
+        $arq->execute([$id]);
+        if ($arq_url = $arq->fetchColumn()) { if (file_exists($arq_url)) unlink($arq_url); }
+        $pdo->prepare("DELETE FROM contratos WHERE id=?")->execute([$id]);
+        flash('Registro removido.');
+    } elseif ($upload_erro) {
+        flash($upload_erro, 'danger');
+    } elseif (!$campos['nome'] || !$campos['data_vencimento']) {
         flash('Nome e data de vencimento são obrigatórios.', 'danger');
     } elseif ($action === 'criar') {
-        $pdo->prepare("INSERT INTO contratos (tipo,nome,fornecedor,numero_contrato,valor,periodicidade,data_inicio,data_vencimento,renovacao_auto,alerta_dias,status,observacoes,corpo) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)")
+        $pdo->prepare("INSERT INTO contratos (tipo,nome,fornecedor,numero_contrato,valor,periodicidade,data_inicio,data_vencimento,renovacao_auto,alerta_dias,status,observacoes,corpo,arquivo_url) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)")
             ->execute(array_values($campos));
         flash("Contrato/Licença \"{$campos['nome']}\" cadastrado.");
     } elseif ($action === 'editar' && $id) {
         $vals = array_values($campos); $vals[] = $id;
-        $pdo->prepare("UPDATE contratos SET tipo=?,nome=?,fornecedor=?,numero_contrato=?,valor=?,periodicidade=?,data_inicio=?,data_vencimento=?,renovacao_auto=?,alerta_dias=?,status=?,observacoes=?,corpo=? WHERE id=?")
+        $pdo->prepare("UPDATE contratos SET tipo=?,nome=?,fornecedor=?,numero_contrato=?,valor=?,periodicidade=?,data_inicio=?,data_vencimento=?,renovacao_auto=?,alerta_dias=?,status=?,observacoes=?,corpo=?,arquivo_url=? WHERE id=?")
             ->execute($vals);
         flash("Registro atualizado.");
-    } elseif ($action === 'excluir' && $id) {
-        $pdo->prepare("DELETE FROM contratos WHERE id=?")->execute([$id]);
-        flash('Registro removido.');
     }
     header('Location: contratos.php'); exit;
 }
@@ -95,33 +137,9 @@ if ($action === 'editar' && $id) {
     $editando = $st->fetch();
 }
 
-// Atualiza status vencidos automaticamente (contratos sem renovação automática)
-$pdo->exec("UPDATE contratos SET status='Vencido' WHERE data_vencimento < CURDATE() AND status='Ativo' AND renovacao_auto=0");
-
-// Contratos com renovação automática: avança a data de vencimento para o próximo
-// período (em vez de deixar uma data vencida marcada como "Ativo" para sempre)
-$intervalo_map = ['Mensal'=>'+1 month','Trimestral'=>'+3 months','Semestral'=>'+6 months','Anual'=>'+1 year'];
-$auto_vencidos = $pdo->query("SELECT id, data_vencimento, periodicidade FROM contratos
-    WHERE data_vencimento < CURDATE() AND status='Ativo' AND renovacao_auto=1")->fetchAll();
-foreach ($auto_vencidos as $c) {
-    $intervalo = $intervalo_map[$c['periodicidade']] ?? null;
-    if (!$intervalo) {
-        // "Único" não tem como se renovar automaticamente — marca como vencido de verdade
-        $pdo->prepare("UPDATE contratos SET status='Vencido' WHERE id=?")->execute([$c['id']]);
-        continue;
-    }
-    // Avança quantos períodos forem necessários até a data ficar no futuro
-    $nova_data = new DateTime($c['data_vencimento']);
-    $hoje = new DateTime('today');
-    while ($nova_data < $hoje) {
-        $nova_data->modify($intervalo);
-    }
-    $nova_data_str = $nova_data->format('Y-m-d');
-    $pdo->prepare("UPDATE contratos SET data_vencimento=? WHERE id=?")
-        ->execute([$nova_data_str, $c['id']]);
-    $pdo->prepare("INSERT INTO contratos_renovacoes (contrato_id, data_anterior, data_nova, tipo) VALUES (?,?,?,'auto')")
-        ->execute([$c['id'], $c['data_vencimento'], $nova_data_str]);
-}
+// NOTA: a marcação de "Vencido" e a renovação automática NÃO rodam mais aqui.
+// Efeitos colaterais em GET geravam execução dupla sob concorrência (P1-3).
+// Agora são feitos por bin/cron_contratos.php (com lock e optimistic update).
 
 // Filtros
 $f_tipo   = $_GET['tipo']   ?? '';
@@ -198,7 +216,7 @@ layoutHeader('Contratos & Licenças', 'contratos');
       <i class="bi bi-chevron-up" id="iconCadastro" style="transition:.2s"></i>
     </div>
     <div class="card-body" id="corpoCadastro">
-      <form method="post">
+      <form method="post" enctype="multipart/form-data">
         <?= csrfField() ?>
         <input type="hidden" name="action" value="<?= $editando ? 'editar' : 'criar' ?>">
         <?php if ($editando): ?><input type="hidden" name="id" value="<?= $editando['id'] ?>"><?php endif; ?>
@@ -259,6 +277,23 @@ layoutHeader('Contratos & Licenças', 'contratos');
             <label class="form-label fw-semibold" style="font-size:13px">Observações internas</label>
             <textarea name="observacoes" rows="2" class="form-control form-control-sm"><?= h($editando['observacoes']??'') ?></textarea>
           </div>
+          <div class="col-sm-6">
+            <label class="form-label fw-semibold" style="font-size:13px">Arquivo do contrato <span class="text-muted fw-normal">(PDF, JPG ou PNG — até 10 MB)</span></label>
+            <input type="file" name="arquivo" class="form-control form-control-sm" accept=".pdf,.jpg,.jpeg,.png">
+          </div>
+          <?php if ($editando && $editando['arquivo_url']): ?>
+          <div class="col-sm-6 d-flex align-items-end">
+            <div class="form-check">
+              <a href="<?= h($editando['arquivo_url']) ?>" target="_blank" class="d-block" style="font-size:13px">
+                <i class="bi bi-file-earmark-check-fill text-success me-1"></i>Arquivo atual: <?= h(basename($editando['arquivo_url'])) ?>
+              </a>
+              <div class="form-check mt-1">
+                <input type="checkbox" name="remover_arquivo" value="1" class="form-check-input" id="chkRemoverArq">
+                <label class="form-check-label text-danger" for="chkRemoverArq" style="font-size:12px">Remover arquivo atual</label>
+              </div>
+            </div>
+          </div>
+          <?php endif; ?>
           <div class="col-12">
             <div class="d-flex justify-content-between align-items-center mb-1">
               <label class="form-label fw-semibold mb-0" style="font-size:13px">Texto do contrato / cláusulas</label>
@@ -363,6 +398,9 @@ layoutHeader('Contratos & Licenças', 'contratos');
         <div class="flex-shrink-0"><span class="badge <?= $statusBadge ?>"><?= h($c['status']) ?></span></div>
         <div class="d-flex gap-1 flex-shrink-0">
           <button type="button" class="btn btn-outline-primary btn-xs" onclick='abrirView(<?= json_encode($c) ?>)'><i class="bi bi-eye"></i></button>
+          <?php if ($c['arquivo_url']): ?>
+          <a href="<?= h($c['arquivo_url']) ?>" target="_blank" class="btn btn-outline-info btn-xs" title="Baixar arquivo original"><i class="bi bi-file-earmark-arrow-down"></i></a>
+          <?php endif; ?>
           <button type="button" class="btn btn-outline-success btn-xs" title="Renovar contrato"
                   data-bs-toggle="modal" data-bs-target="#modalRenovar"
                   data-id="<?= $c['id'] ?>" data-nome="<?= h($c['nome']) ?>" data-periodicidade="<?= h($c['periodicidade']) ?>">
@@ -794,6 +832,12 @@ document.getElementById('renovPeriodo').addEventListener('change', function() {
               <div id="mv-renovacao" class="fw-semibold"></div>
             </div>
           </div>
+          <div class="col-12 mb-3" id="mv-arquivo-wrap" style="display:none">
+            <div class="text-muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.05em">Arquivo Anexado</div>
+            <a id="mv-arquivo-link" href="#" target="_blank" class="d-inline-flex align-items-center gap-2 mt-1" style="font-size:13px">
+              <i class="bi bi-file-earmark-check-fill text-success"></i><span id="mv-arquivo-nome"></span>
+            </a>
+          </div>
           <div class="col-12" id="mv-obs-wrap" style="display:none">
             <div class="text-muted" style="font-size:11px;text-transform:uppercase;letter-spacing:.05em">Observações internas</div>
             <div id="mv-obs" class="fw-semibold mt-1" style="white-space:pre-wrap;background:var(--bs-light);border-radius:6px;padding:10px;font-size:13px"></div>
@@ -838,6 +882,15 @@ function abrirView(c) {
 
   const statusEl = document.getElementById('mv-status');
   statusEl.innerHTML = '<span class="badge ' + (statusClass[c.status] || 'bg-secondary text-white') + '">' + c.status + '</span>';
+
+  const arqWrap = document.getElementById('mv-arquivo-wrap');
+  if (c.arquivo_url) {
+    document.getElementById('mv-arquivo-link').href = c.arquivo_url;
+    document.getElementById('mv-arquivo-nome').textContent = c.arquivo_url.split('/').pop();
+    arqWrap.style.display = '';
+  } else {
+    arqWrap.style.display = 'none';
+  }
 
   const obsWrap = document.getElementById('mv-obs-wrap');
   if (c.observacoes && c.observacoes.trim()) {

@@ -24,6 +24,9 @@ define('APP_EMAIL_REPLY', $_cfg['APP_EMAIL_REPLY'] ?? 'noreply@pageup.net.br');
 define('DEBUG_MODE',      $_cfg['DEBUG_MODE']      ?? false);
 define('GEMINI_API_KEY',  $_cfg['GEMINI_API_KEY']  ?? '');
 
+// Token do endpoint health.php (defina em config.local.php em produção)
+define('HEALTH_TOKEN',    $_cfg['HEALTH_TOKEN']    ?? '');
+
 unset($_cfg);
 
 date_default_timezone_set('America/Sao_Paulo');

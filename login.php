@@ -61,6 +61,11 @@ h1{font-size:17px;font-weight:700;text-align:center;margin-bottom:1.5rem;color:#
 .link-publico{display:block;text-align:center;margin-top:1.25rem;font-size:12.5px;color:#6b7280}
 .link-publico a{color:#1D3557;text-decoration:none}
 .link-publico a:hover{color:#457B9D}
+.input-group .form-control{border-right:none}
+.input-group .form-control:focus{box-shadow:none;border-color:#457B9D}
+.input-group:focus-within .btn-toggle-senha{border-color:#457B9D}
+.btn-toggle-senha{border-left:none;border-color:#ced4da;background:#fff;color:#6b7280;border-top-right-radius:8px!important;border-bottom-right-radius:8px!important}
+.btn-toggle-senha:hover{background:#f8f9fa;color:#1D3557}
 </style>
 </head>
 <body>
@@ -79,7 +84,12 @@ h1{font-size:17px;font-weight:700;text-align:center;margin-bottom:1.5rem;color:#
     </div>
     <div class="mb-3">
       <label class="form-label fw-semibold" style="font-size:13px">Senha</label>
-      <input type="password" name="senha" class="form-control" placeholder="••••••••" required autocomplete="current-password">
+      <div class="input-group">
+        <input type="password" name="senha" id="senhaInput" class="form-control" placeholder="••••••••" required autocomplete="current-password">
+        <button type="button" class="btn btn-outline-secondary btn-toggle-senha" id="btnToggleSenha" tabindex="-1" title="Mostrar senha">
+          <i class="bi bi-eye" id="iconToggleSenha"></i>
+        </button>
+      </div>
     </div>
     <button type="submit" class="btn btn-login">Entrar</button>
   </form>
@@ -89,5 +99,15 @@ h1{font-size:17px;font-weight:700;text-align:center;margin-bottom:1.5rem;color:#
     <a href="abrir.php">Abrir chamado →</a>
   </p>
 </div>
+<script>
+  document.getElementById('btnToggleSenha').addEventListener('click', function() {
+    const input = document.getElementById('senhaInput');
+    const icon  = document.getElementById('iconToggleSenha');
+    const mostrando = input.type === 'text';
+    input.type = mostrando ? 'password' : 'text';
+    icon.className = mostrando ? 'bi bi-eye' : 'bi bi-eye-slash';
+    this.title = mostrando ? 'Mostrar senha' : 'Ocultar senha';
+  });
+</script>
 </body>
 </html>

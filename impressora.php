@@ -149,13 +149,32 @@ function badgeStatusSuprimento(string $s): string {
   </div>
 </div>
 
-<div class="row g-4 mb-4">
-  <!-- Detalhes Técnicos -->
-  <div class="col-md-4">
-    <div class="card h-100">
-      <div class="card-header fw-bold"><i class="bi bi-info-circle-fill me-2 text-primary"></i>Especificações Técnicas</div>
-      <div class="card-body">
-        <ul class="list-group list-group-flush" style="font-size:13.5px">
+<div class="card mb-4">
+  <div class="card-header p-0">
+    <ul class="nav nav-tabs border-0" id="printerTab" role="tablist">
+      <li class="nav-item" role="presentation">
+        <button class="nav-link active border-0 px-4 py-3 fw-semibold" style="font-size:13.5px" id="especificacoes-tab" data-bs-toggle="tab" data-bs-target="#especificacoes" type="button" role="tab" aria-controls="especificacoes" aria-selected="true">
+          <i class="bi bi-info-circle-fill me-2 text-primary"></i>Especificações Técnicas
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link border-0 px-4 py-3 fw-semibold" style="font-size:13.5px" id="manutencao-tab" data-bs-toggle="tab" data-bs-target="#manutencao" type="button" role="tab" aria-controls="manutencao" aria-selected="false">
+          <i class="bi bi-wrench-adjustable me-2 text-warning"></i>Histórico de Manutenções
+        </button>
+      </li>
+      <li class="nav-item" role="presentation">
+        <button class="nav-link border-0 px-4 py-3 fw-semibold" style="font-size:13.5px" id="suprimentos-tab" data-bs-toggle="tab" data-bs-target="#suprimentos" type="button" role="tab" aria-controls="suprimentos" aria-selected="false">
+          <i class="bi bi-box-seam me-2 text-primary"></i>Pedidos de Suprimentos
+        </button>
+      </li>
+    </ul>
+  </div>
+
+  <div class="card-body">
+    <div class="tab-content" id="printerTabContent">
+      <!-- Aba Especificações -->
+      <div class="tab-pane fade show active" id="especificacoes" role="tabpanel" aria-labelledby="especificacoes-tab">
+        <ul class="list-group list-group-flush" style="font-size:13.5px;max-width:520px">
           <li class="list-group-item px-0 d-flex justify-content-between">
             <span class="text-muted">Status:</span>
             <span><?= badgeStatusImp($imp['status']) ?></span>
@@ -178,7 +197,7 @@ function badgeStatusSuprimento(string $s): string {
               <?php if ($imp['ip']): ?>
                 <a href="http://<?= h($imp['ip']) ?>" target="_blank" class="text-decoration-none" title="Acessar painel web">
                   <i class="bi bi-link-45deg me-1"></i><?= h($imp['ip']) ?>
-                </a>
+                </a><?= copyBtn($imp['ip']) ?>
               <?php else: ?>
                 <span class="text-muted">Não configurado</span>
               <?php endif; ?>
@@ -186,7 +205,7 @@ function badgeStatusSuprimento(string $s): string {
           </li>
           <li class="list-group-item px-0 d-flex justify-content-between">
             <span class="text-muted">Número de Série:</span>
-            <span class="text-muted"><?= h($imp['numero_serie'] ?: '—') ?></span>
+            <span class="text-muted"><?= h($imp['numero_serie'] ?: '—') ?><?= copyBtn($imp['numero_serie']) ?></span>
           </li>
           <li class="list-group-item px-0 d-flex justify-content-between">
             <span class="text-muted">Cadastrado em:</span>
@@ -194,31 +213,9 @@ function badgeStatusSuprimento(string $s): string {
           </li>
         </ul>
       </div>
-    </div>
-  </div>
 
-  <!-- Abas de Histórico -->
-  <div class="col-md-8">
-    <div class="card h-100">
-      <div class="card-header p-0">
-        <ul class="nav nav-tabs border-0" id="printerTab" role="tablist">
-          <li class="nav-item" role="presentation">
-            <button class="nav-link active border-0 px-4 py-3 fw-semibold" style="font-size:13.5px" id="manutencao-tab" data-bs-toggle="tab" data-bs-target="#manutencao" type="button" role="tab" aria-controls="manutencao" aria-selected="true">
-              <i class="bi bi-wrench-adjustable me-2 text-warning"></i>Histórico de Manutenções
-            </button>
-          </li>
-          <li class="nav-item" role="presentation">
-            <button class="nav-link border-0 px-4 py-3 fw-semibold" style="font-size:13.5px" id="suprimentos-tab" data-bs-toggle="tab" data-bs-target="#suprimentos" type="button" role="tab" aria-controls="suprimentos" aria-selected="false">
-              <i class="bi bi-box-seam me-2 text-primary"></i>Pedidos de Suprimentos
-            </button>
-          </li>
-        </ul>
-      </div>
-      
-      <div class="card-body">
-        <div class="tab-content" id="printerTabContent">
-          <!-- Aba Manutenção -->
-          <div class="tab-pane fade show active" id="manutencao" role="tabpanel" aria-labelledby="manutencao-tab">
+      <!-- Aba Manutenção -->
+      <div class="tab-pane fade" id="manutencao" role="tabpanel" aria-labelledby="manutencao-tab">
             <div class="table-responsive">
               <table class="table table-hover table-sm align-middle" style="font-size:13px">
                 <thead>
@@ -310,8 +307,6 @@ function badgeStatusSuprimento(string $s): string {
         </div>
       </div>
     </div>
-  </div>
-</div>
 
 <?php
 // ── Seção de Monitoramento SNMP ─────────────────────────────

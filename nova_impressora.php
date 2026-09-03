@@ -47,7 +47,7 @@ layoutHeader('Cadastrar Impressora', 'impressoras');
   <h1 class="page-title"><i class="bi bi-plus-circle-fill me-2 text-primary"></i>Cadastrar Nova Impressora</h1>
 </div>
 
-<div class="card" style="max-width:680px">
+<div class="card">
   <div class="card-header">Ficha de Cadastro de Equipamento</div>
   <div class="card-body">
     <?php if ($erros): ?>

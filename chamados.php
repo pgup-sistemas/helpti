@@ -114,11 +114,11 @@ function bs(string $s): string {
     <span><?= $total_registros ?> chamado(s) encontrado(s)</span>
   </div>
   <div class="table-responsive">
-    <table class="table table-hover mb-0">
+    <table class="table table-hover mb-0 table-sortable">
       <thead>
         <tr>
-          <th>Nº</th><th>Descrição</th><th>Setor</th><th>Solicitante</th>
-          <th>Resp.</th><th>Nível / SLA</th><th>Status</th><th>Data</th><th class="text-end">Ações</th>
+          <th data-sort>Nº</th><th data-sort>Descrição</th><th data-sort>Setor</th><th data-sort>Solicitante</th>
+          <th data-sort>Resp.</th><th>Nível / SLA</th><th data-sort>Status</th><th data-sort data-sort-type="number">Data</th><th class="text-end">Ações</th>
         </tr>
       </thead>
       <tbody>
@@ -149,7 +149,7 @@ function bs(string $s): string {
             ?>
           </td>
           <td><?= bs($c['status']) ?></td>
-          <td style="font-size:12px;white-space:nowrap"><?= date('d/m/y H:i', strtotime($c['criado_em'])) ?></td>
+          <td style="font-size:12px;white-space:nowrap" data-sort-value="<?= strtotime($c['criado_em']) ?>"><?= date('d/m/y H:i', strtotime($c['criado_em'])) ?></td>
           <td class="text-end">
             <div class="dropdown">
               <button class="btn btn-light btn-xs border dropdown-toggle" type="button" data-bs-toggle="dropdown">Ações</button>

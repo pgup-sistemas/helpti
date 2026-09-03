@@ -97,7 +97,7 @@ layoutHeader('Editar Manutenção', 'manutencoes');
   <h1 class="page-title"><i class="bi bi-pencil-square me-2 text-primary"></i>Editar Registro de Manutenção</h1>
 </div>
 
-<div class="card" style="max-width:700px">
+<div class="card">
   <div class="card-header">
     Ordem de Serviço Nº <?= $id ?> — <strong><?= h($manut['impressora_nome']) ?></strong> (<?= h($manut['impressora_setor']) ?>)
   </div>

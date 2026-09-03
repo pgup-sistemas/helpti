@@ -1,4 +1,5 @@
 <?php
+if (!defined('HELPTI_BOOT')) { http_response_code(403); exit('Acesso negado.'); }
 /**
  * HelpTI — Sincronização do Inventário
  * Conecta inventario → impressoras e inventario → chamados
@@ -117,29 +118,6 @@ function sync_inventario_status_chamado(int $chamado_id, string $status_chamado)
 }
 
 // ── Busca equipamentos do solicitante/setor para chamados ─
-function equipamentos_para_chamado(string $setor = '', string $responsavel = ''): array {
-    $pdo = db();
-    $where = ["status NOT IN ('Descartado')"];
-    $params = [];
-
-    if ($setor) {
-        $where[] = 'setor = ?';
-        $params[] = $setor;
-    }
-    if ($responsavel) {
-        $where[] = 'responsavel_nome LIKE ?';
-        $params[] = "%$responsavel%";
-    }
-
-    $sql = 'SELECT id, tipo, marca, modelo, numero_serie, patrimonio, setor, responsavel_nome, status
-            FROM inventario WHERE ' . implode(' AND ', $where) . '
-            ORDER BY tipo, marca, modelo';
-    return $pdo->prepare($sql)->execute($params) ? $pdo->prepare($sql)->execute($params) && false ?: (function() use ($pdo, $sql, $params) {
-        $st = $pdo->prepare($sql); $st->execute($params); return $st->fetchAll(PDO::FETCH_ASSOC);
-    })() : [];
-}
-
-// Versão limpa da função acima
 function listar_equipamentos_chamado(string $setor = '', string $responsavel = ''): array {
     $pdo = db();
     $where = ["status NOT IN ('Descartado')"];

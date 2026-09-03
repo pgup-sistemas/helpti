@@ -116,6 +116,14 @@ body.sidebar-collapsed .nav-section .nav-sec-arrow{display:none}
 .table-hover tbody tr:hover td{background:var(--bg-hover)}
 .table{--bs-table-bg:var(--bg-surface);--bs-table-striped-bg:var(--bg-surface-alt);color:var(--tx-primary)}
 
+/* Cabeçalho fixo (sticky) — fica visível ao rolar a página, logo abaixo da topbar */
+.table-sortable thead th{position:sticky;top:60px;z-index:5}
+
+/* Botão de copiar (IP, número de série etc.) */
+.btn-copy{background:none;border:none;padding:0 2px;color:var(--tx-faint);cursor:pointer;font-size:11px;vertical-align:middle;transition:.15s}
+.btn-copy:hover{color:var(--brand)}
+.btn-copy.copiado{color:#22c55e}
+
 /* ── Stat cards ── */
 .stat-card{background:var(--bg-surface);border-radius:10px;padding:1.2rem 1.4rem;box-shadow:0 1px 4px rgba(0,0,0,.06)}
 .stat-num{font-size:28px;font-weight:700;line-height:1}
@@ -626,6 +634,15 @@ function breadcrumb(array $items): void {
     echo '</ol></nav>';
 }
 
+/**
+ * Botão pequeno para copiar um valor (IP, número de série etc.) para a área de transferência.
+ * Uso: <?= copyBtn($imp['ip']) ?>
+ */
+function copyBtn(?string $texto): string {
+    if (!$texto) return '';
+    return ' <button type="button" class="btn-copy" title="Copiar" onclick="copiarTexto(this, ' . htmlspecialchars(json_encode($texto), ENT_QUOTES) . ')"><i class="bi bi-clipboard"></i></button>';
+}
+
 function layoutFooter(): void {
 ?>
 </main>
@@ -699,6 +716,22 @@ function layoutFooter(): void {
 
   // ── Notificações ──────────────────────────────────────────
 
+  // Escape para interpolação segura em innerHTML (P0-3)
+  function esc(s) {
+    return String(s ?? '').replace(/[&<>"']/g, c => ({
+      '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+    }[c]));
+  }
+  // Cor só pode ser um hex — senão devolve cinza neutro
+  function corSegura(c) {
+    return /^#[0-9a-fA-F]{3,8}$/.test(String(c || '')) ? c : '#6b7280';
+  }
+  // Link interno: só caminhos relativos do próprio app
+  function linkSeguro(l) {
+    l = String(l || '');
+    return /^[a-zA-Z0-9_\-]+\.php(\?[^"'<>\s]*)?$/.test(l) ? l : '#';
+  }
+
   function carregarNotificacoes() {
     fetch('notificacoes.php')
       .then(r => r.json())
@@ -717,16 +750,20 @@ function layoutFooter(): void {
           list.innerHTML = '<div class="notif-empty"><i class="bi bi-check-circle" style="font-size:28px;display:block;margin-bottom:8px;opacity:.3"></i>Tudo em ordem!</div>';
           return;
         }
-        list.innerHTML = d.itens.map(n => `
-          <a href="${n.link}" class="notif-item">
-            <div class="notif-ico" style="background:${n.cor}20;color:${n.cor}">
-              <i class="bi ${n.icon}"></i>
+        list.innerHTML = d.itens.map(n => {
+          const cor = corSegura(n.cor);
+          const ico = /^bi-[a-z0-9-]+$/.test(String(n.icon || '')) ? n.icon : 'bi-bell';
+          return `
+          <a href="${esc(linkSeguro(n.link))}" class="notif-item">
+            <div class="notif-ico" style="background:${cor}20;color:${cor}">
+              <i class="bi ${esc(ico)}"></i>
             </div>
             <div style="flex:1;min-width:0">
-              <div class="notif-texto">${n.texto}</div>
+              <div class="notif-texto">${esc(n.texto)}</div>
             </div>
-            <span class="notif-acao" style="color:${n.cor}">${n.label} →</span>
-          </a>`).join('');
+            <span class="notif-acao" style="color:${cor}">${esc(n.label)} →</span>
+          </a>`;
+        }).join('');
       })
       .catch(() => {});
   }
@@ -761,14 +798,15 @@ function layoutFooter(): void {
       let html = ''; grupoAtual = null;
       itens.forEach((it, i) => {
         if (it.grupo !== grupoAtual) {
-          html += `<div class="busca-grupo">${it.grupo}</div>`;
+          html += `<div class="busca-grupo">${esc(it.grupo)}</div>`;
           grupoAtual = it.grupo;
         }
-        html += `<a class="busca-item" href="${it.link}" data-idx="${i}">
-          <div class="busca-ico" style="background:${it.cor}"><i class="bi ${it.icone}"></i></div>
+        const ico = /^bi-[a-z0-9-]+$/.test(String(it.icone || '')) ? it.icone : 'bi-dot';
+        html += `<a class="busca-item" href="${esc(linkSeguro(it.link))}" data-idx="${i}">
+          <div class="busca-ico" style="background:${corSegura(it.cor)}"><i class="bi ${esc(ico)}"></i></div>
           <div style="min-width:0">
-            <div class="busca-titulo">${it.titulo}</div>
-            <div class="busca-sub">${it.sub}</div>
+            <div class="busca-titulo">${esc(it.titulo)}</div>
+            <div class="busca-sub">${esc(it.sub)}</div>
           </div></a>`;
       });
       dropdown.innerHTML = html;
@@ -807,6 +845,94 @@ function layoutFooter(): void {
       if (this.value.trim().length >= 2 && dropdown.innerHTML) dropdown.classList.add('aberto');
     });
   })();
+
+  // ── Copiar texto (IP, número de série etc.) ─────────────────
+  function copiarTexto(btn, texto) {
+    navigator.clipboard.writeText(texto).then(function () {
+      const icon = btn.querySelector('i');
+      const original = icon.className;
+      icon.className = 'bi bi-check-lg';
+      btn.classList.add('copiado');
+      btn.title = 'Copiado!';
+      setTimeout(function () {
+        icon.className = original;
+        btn.classList.remove('copiado');
+        btn.title = 'Copiar';
+      }, 1500);
+    }).catch(function () {});
+  }
+
+  // ── Tabelas ordenáveis (clique no cabeçalho) ────────────────
+  // Uso: <table class="table-sortable"> ... <th data-sort>Nome</th> ...
+  // data-sort-type="number" para ordenar numericamente (padrão: texto)
+  // Em uma célula, use data-sort-value="123" quando o texto exibido não for o valor real (ex: badges)
+  // A última ordenação escolhida fica salva por tabela (localStorage) e é restaurada ao voltar à página.
+  document.querySelectorAll('table.table-sortable').forEach(function (table, tableIdx) {
+    const headerRow = table.querySelector('thead tr');
+    if (!headerRow) return;
+    const headers = Array.from(headerRow.children).filter(th => th.hasAttribute('data-sort'));
+    const storageKey = 'table-sort:' + location.pathname + ':' + (table.id || tableIdx);
+
+    function aplicarOrdenacao(th, dir) {
+      const colIndex = Array.from(headerRow.children).indexOf(th);
+      const tbody = table.querySelector('tbody');
+      if (!tbody) return;
+      const rows = Array.from(tbody.querySelectorAll(':scope > tr')).filter(r => r.children.length === headerRow.children.length);
+      if (!rows.length) return;
+      const type = th.dataset.sortType || 'text';
+
+      headers.forEach(function (h) {
+        h.dataset.sortDir = '';
+        const ic = h.querySelector('i');
+        if (ic) { ic.className = 'bi bi-arrow-down-up ms-1'; ic.style.opacity = '.35'; }
+      });
+      th.dataset.sortDir = dir;
+      const arrow = th.querySelector('i');
+      arrow.className = dir === 'asc' ? 'bi bi-sort-alpha-down ms-1' : 'bi bi-sort-alpha-up ms-1';
+      arrow.style.opacity = '1';
+
+      rows.sort(function (a, b) {
+        const ca = a.children[colIndex], cb = b.children[colIndex];
+        let va = (ca?.dataset.sortValue ?? ca?.textContent ?? '').trim();
+        let vb = (cb?.dataset.sortValue ?? cb?.textContent ?? '').trim();
+        if (type === 'number') {
+          va = parseFloat(va.replace(/[^\d.,-]/g, '').replace(',', '.')) || 0;
+          vb = parseFloat(vb.replace(/[^\d.,-]/g, '').replace(',', '.')) || 0;
+          return dir === 'asc' ? va - vb : vb - va;
+        }
+        return dir === 'asc' ? va.localeCompare(vb, 'pt-BR') : vb.localeCompare(va, 'pt-BR');
+      });
+
+      rows.forEach(r => tbody.appendChild(r));
+    }
+
+    headers.forEach(function (th) {
+      const colIndex = Array.from(headerRow.children).indexOf(th);
+      th.style.cursor = 'pointer';
+      th.style.userSelect = 'none';
+      th.style.whiteSpace = 'nowrap';
+
+      const arrow = document.createElement('i');
+      arrow.className = 'bi bi-arrow-down-up ms-1';
+      arrow.style.cssText = 'opacity:.35;font-size:11px';
+      th.appendChild(arrow);
+
+      th.addEventListener('click', function () {
+        const dir = th.dataset.sortDir === 'asc' ? 'desc' : 'asc';
+        aplicarOrdenacao(th, dir);
+        try { localStorage.setItem(storageKey, JSON.stringify({col: colIndex, dir: dir})); } catch (e) {}
+      });
+    });
+
+    // Restaura a última ordenação salva, se houver
+    try {
+      const saved = JSON.parse(localStorage.getItem(storageKey) || 'null');
+      if (saved) {
+        const th = Array.from(headerRow.children)[saved.col];
+        if (th && th.hasAttribute('data-sort')) aplicarOrdenacao(th, saved.dir);
+      }
+    } catch (e) {}
+  });
 </script>
 </body>
 </html>

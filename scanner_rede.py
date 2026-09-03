@@ -108,7 +108,7 @@ def detecta_todas_redes() -> list:
                         '172.19.', '172.2', '::')
     redes = []
     try:
-        out = subprocess.check_output('ip route show', shell=True).decode()
+        out = subprocess.check_output(['ip', 'route', 'show']).decode()
         for linha in out.splitlines():
             # Linhas de rota direta: "192.168.1.0/24 dev enp3s0 proto kernel ..."
             m = re.match(r'^(\d[\d\.]+/\d+)\s+dev\s+(\S+)', linha)
@@ -125,7 +125,8 @@ def detecta_todas_redes() -> list:
     if not redes:
         # Fallback: pega a rota padrão
         try:
-            out = subprocess.check_output("ip route get 1.1.1.1 2>/dev/null", shell=True).decode()
+            out = subprocess.check_output(['ip', 'route', 'get', '1.1.1.1'],
+                                          stderr=subprocess.DEVNULL).decode()
             iface_m = re.search(r'dev\s+(\S+)', out)
             src_m   = re.search(r'src\s+([\d\.]+)', out)
             if iface_m and src_m:
@@ -141,7 +142,7 @@ def detecta_iface_para_rede(cidr: str) -> str:
     base_ip = cidr.split('/')[0]
     try:
         out = subprocess.check_output(
-            f'ip route get {base_ip} 2>/dev/null', shell=True
+            ['ip', 'route', 'get', base_ip], stderr=subprocess.DEVNULL
         ).decode()
         m = re.search(r'dev\s+(\S+)', out)
         if m:
@@ -385,8 +386,14 @@ def exporta_json(hosts, arquivo):
             'setor':      h.get('setor', '') or '',
         } for h in hosts]
     }
-    with open(arquivo, 'w', encoding='utf-8') as f:
+    # Escrita atômica: grava em .tmp e renomeia (os.replace é atômico no mesmo FS).
+    # Evita que o cron PHP leia um JSON truncado se dois scans rodarem juntos. (P2-2)
+    tmp = arquivo + '.tmp'
+    with open(tmp, 'w', encoding='utf-8') as f:
         json.dump(dados, f, ensure_ascii=False, indent=2)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp, arquivo)
 
 # ── Exporta CSV ───────────────────────────────────────────
 def exporta_csv(hosts, arquivo):

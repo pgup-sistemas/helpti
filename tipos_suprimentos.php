@@ -97,12 +97,12 @@ layoutHeader('Tipos de Suprimentos', 'tipos_suprimentos');
     <?php endif; ?>
   </div>
   <div class="table-responsive">
-    <table class="table table-hover mb-0">
+    <table class="table table-hover mb-0 table-sortable">
       <thead>
         <tr>
-          <th>Nome do Insumo</th>
-          <th>Estoque</th>
-          <th>Status</th>
+          <th data-sort>Nome do Insumo</th>
+          <th data-sort data-sort-type="number">Estoque</th>
+          <th data-sort>Status</th>
           <th>Ações</th>
         </tr>
       </thead>
@@ -120,7 +120,7 @@ layoutHeader('Tipos de Suprimentos', 'tipos_suprimentos');
             <td>
               <strong><a href="editar_tipo_suprimento.php?id=<?= $t['id'] ?>" class="text-decoration-none text-dark"><?= h($t['nome']) ?></a></strong>
             </td>
-            <td>
+            <td data-sort-value="<?= $eatl ?>">
               <span class="badge bg-<?= $est_cor ?>" style="font-size:11px">
                 <i class="bi bi-<?= $est_ico ?> me-1"></i><?= $est_txt ?>
               </span>

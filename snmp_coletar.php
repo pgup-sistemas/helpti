@@ -9,24 +9,30 @@
 
 define('CLI_RUN', true);
 require __DIR__ . '/db.php';
+require __DIR__ . '/bin/lib_cron.php';
+cron_guard('snmp');                       // CLI + lock exclusivo (P2-2)
 $pdo = db();
+// Schema em database/migrations/ — nada de DDL em runtime.
 
-// ── Cria tabela se ainda não existir ───────────────────────
-$pdo->exec("CREATE TABLE IF NOT EXISTS `impressoras_snapshot` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `impressora_id` int NOT NULL,
-  `coletado_em` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `paginas_total` int DEFAULT NULL,
-  `toner_preto_pct` tinyint DEFAULT NULL,
-  `toner_ciano_pct` tinyint DEFAULT NULL,
-  `toner_magenta_pct` tinyint DEFAULT NULL,
-  `toner_amarelo_pct` tinyint DEFAULT NULL,
-  `raw_snmp` text DEFAULT NULL,
-  PRIMARY KEY (`id`),
-  KEY `idx_impressora_data` (`impressora_id`, `coletado_em`),
-  CONSTRAINT `fk_snap_impressora` FOREIGN KEY (`impressora_id`)
-    REFERENCES `impressoras` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+/**
+ * Só permite requisição HTTP a IPs privados/link-local esperados numa rede de clínica.
+ * Bloqueia SSRF para metadata endpoints, loopback e internet pública. (P2-3)
+ */
+function ip_alvo_permitido(string $ip): bool {
+    if (!filter_var($ip, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) return false;
+    $long = ip2long($ip);
+    // Aceita SOMENTE faixas privadas RFC1918 (rede da clínica).
+    // Isso já exclui loopback, link-local/metadata (169.254) e internet pública.
+    $privadas = [
+        ['10.0.0.0', '10.255.255.255'],
+        ['172.16.0.0', '172.31.255.255'],
+        ['192.168.0.0', '192.168.255.255'],
+    ];
+    foreach ($privadas as [$a, $b]) {
+        if ($long >= ip2long($a) && $long <= ip2long($b)) return true;
+    }
+    return false;
+}
 
 // ── Destinatários: todos os admins do sistema ───────────────
 $admins = $pdo->query(
@@ -198,6 +204,8 @@ foreach ($impressoras as $imp) {
 echo "\n[" . date('Y-m-d H:i:s') . "] Coleta finalizada";
 echo " | Alertas toner: {$alertas_toner} | Alertas offline: {$alertas_offline}\n";
 
+cron_finish('snmp', true, "impressoras=" . count($impressoras) . " toner={$alertas_toner} offline={$alertas_offline}");
+
 // ── E-mails ─────────────────────────────────────────────────
 
 function enfileira_alerta_toner(PDO $pdo, array $imp, array $dados, array $admins): void
@@ -329,10 +337,11 @@ function toner_pct(?string $nivel, ?string $cap): ?int
 // Tenta buscar nível de toner via XML HTTP da HP quando SNMP retorna -2/unknown
 function hp_toner_xml(string $ip): ?int
 {
+    if (!ip_alvo_permitido($ip)) return null;
     $xml = @file_get_contents(
         "http://{$ip}/DevMgmt/ConsumableConfigDyn.xml",
         false,
-        stream_context_create(['http' => ['timeout' => 3]])
+        stream_context_create(['http' => ['timeout' => 3, 'follow_location' => 0]])
     );
     if (!$xml) return null;
     if (preg_match('/<dd:ConsumablePercentageLevelRemaining>(\d+)<\/dd:ConsumablePercentageLevelRemaining>/', $xml, $m)) {
@@ -345,10 +354,11 @@ function hp_toner_xml(string $ip): ?int
 // (algumas impressoras HP bloqueiam SNMP por segurança mas mantêm o EWS/HTTP ativo)
 function hp_modelo_http(string $ip): ?array
 {
+    if (!ip_alvo_permitido($ip)) return null;
     $xml = @file_get_contents(
         "http://{$ip}/DevMgmt/ProductConfigDyn.xml",
         false,
-        stream_context_create(['http' => ['timeout' => 3]])
+        stream_context_create(['http' => ['timeout' => 3, 'follow_location' => 0]])
     );
     if (!$xml) return null;
     $modelo = null;

@@ -26,7 +26,7 @@ $where_sql = $where ? 'WHERE ' . implode(' AND ', $where) : '';
 
 // ── Aba 1: lista completa ──────────────────────────────────
 $stmt = $pdo->prepare("SELECT nome, tipo, fornecedor, numero_contrato,
-    data_inicio, data_vencimento, valor_mensal, valor_total,
+    data_inicio, data_vencimento, valor, periodicidade,
     status, renovacao_auto, alerta_dias, observacoes
     FROM contratos $where_sql ORDER BY data_vencimento ASC");
 $stmt->execute($params);
@@ -34,14 +34,14 @@ $contratos = $stmt->fetchAll();
 
 $sheet1 = [[
     bold('Nome / Objeto'), bold('Tipo'), bold('Fornecedor'), bold('Nº Contrato'),
-    bold('Início'), bold('Vencimento'), bold('Valor Mensal'), bold('Valor Total'),
+    bold('Início'), bold('Vencimento'), bold('Valor'), bold('Periodicidade'),
     bold('Status'), bold('Renovação Auto'), bold('Alerta (dias)'), bold('Observações'),
 ]];
 foreach ($contratos as $r) {
     $sheet1[] = [
         $r['nome'], $r['tipo'], $r['fornecedor'] ?: '—', $r['numero_contrato'] ?: '—',
         d($r['data_inicio']), d($r['data_vencimento']),
-        moeda($r['valor_mensal']), moeda($r['valor_total']),
+        moeda($r['valor']), $r['periodicidade'] ?: '—',
         $r['status'], $r['renovacao_auto'] ? 'Sim' : 'Não',
         $r['alerta_dias'] ?: '—', $r['observacoes'] ?: '',
     ];
@@ -49,36 +49,34 @@ foreach ($contratos as $r) {
 if (count($sheet1) === 1) $sheet1[] = ['Nenhum contrato encontrado com os filtros aplicados.','','','','','','','','','','',''];
 
 // ── Aba 2: resumo por status ───────────────────────────────
-$resumo = $pdo->query("SELECT status, COUNT(*) AS total,
-    SUM(valor_mensal) AS soma_mensal, SUM(valor_total) AS soma_total
+$resumo = $pdo->query("SELECT status, COUNT(*) AS total, SUM(valor) AS soma_valor
     FROM contratos GROUP BY status ORDER BY total DESC")->fetchAll();
 
-$sheet2 = [[bold('Status'), bold('Quantidade'), bold('Soma Mensal'), bold('Soma Total')]];
+$sheet2 = [[bold('Status'), bold('Quantidade'), bold('Soma dos Valores')]];
 foreach ($resumo as $r) {
-    $sheet2[] = [$r['status'], $r['total'], moeda($r['soma_mensal']), moeda($r['soma_total'])];
+    $sheet2[] = [$r['status'], $r['total'], moeda($r['soma_valor'])];
 }
 
 // ── Aba 3: vencimentos próximos (90 dias) ──────────────────
 $venc = $pdo->query("SELECT nome, fornecedor, data_vencimento,
-    DATEDIFF(data_vencimento, CURDATE()) AS dias_restantes, status, valor_mensal
+    DATEDIFF(data_vencimento, CURDATE()) AS dias_restantes, status, valor
     FROM contratos
     WHERE status = 'Ativo' AND data_vencimento BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 90 DAY)
     ORDER BY data_vencimento ASC")->fetchAll();
 
-$sheet3 = [[bold('Nome'), bold('Fornecedor'), bold('Vencimento'), bold('Dias Restantes'), bold('Status'), bold('Valor Mensal')]];
+$sheet3 = [[bold('Nome'), bold('Fornecedor'), bold('Vencimento'), bold('Dias Restantes'), bold('Status'), bold('Valor')]];
 foreach ($venc as $r) {
-    $sheet3[] = [$r['nome'], $r['fornecedor'] ?: '—', d($r['data_vencimento']), (int)$r['dias_restantes'], $r['status'], moeda($r['valor_mensal'])];
+    $sheet3[] = [$r['nome'], $r['fornecedor'] ?: '—', d($r['data_vencimento']), (int)$r['dias_restantes'], $r['status'], moeda($r['valor'])];
 }
 if (count($sheet3) === 1) $sheet3[] = ['Nenhum contrato vencendo nos próximos 90 dias.','','','','',''];
 
 // ── Aba 4: por tipo ────────────────────────────────────────
-$por_tipo = $pdo->query("SELECT tipo, COUNT(*) AS total,
-    SUM(valor_mensal) AS soma_mensal, SUM(valor_total) AS soma_total
+$por_tipo = $pdo->query("SELECT tipo, COUNT(*) AS total, SUM(valor) AS soma_valor
     FROM contratos GROUP BY tipo ORDER BY total DESC")->fetchAll();
 
-$sheet4 = [[bold('Tipo'), bold('Quantidade'), bold('Soma Mensal'), bold('Soma Total')]];
+$sheet4 = [[bold('Tipo'), bold('Quantidade'), bold('Soma dos Valores')]];
 foreach ($por_tipo as $r) {
-    $sheet4[] = [$r['tipo'], $r['total'], moeda($r['soma_mensal']), moeda($r['soma_total'])];
+    $sheet4[] = [$r['tipo'], $r['total'], moeda($r['soma_valor'])];
 }
 
 // ── Gerar XLSX ─────────────────────────────────────────────

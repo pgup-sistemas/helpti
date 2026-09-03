@@ -59,14 +59,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!$erros) {
         try {
             $pdo->beginTransaction();
-            $pdo->exec("UPDATE sequences SET value = LAST_INSERT_ID(value + 1) WHERE name = 'suprimentos'");
-            $seq_sup    = (int)$pdo->query("SELECT LAST_INSERT_ID()")->fetchColumn();
-            $numero_sup = 'SUP-' . date('Y') . '-' . str_pad($seq_sup, 5, '0', STR_PAD_LEFT);
+            $numero_sup = gerarNumeroSuprimento();
 
             $pdo->prepare("
-                INSERT INTO pedidos_suprimentos (numero, impressora_id, setor, solicitante, status, observacoes)
-                VALUES (?, ?, ?, ?, 'Pendente', ?)
-            ")->execute([$numero_sup, $impressora_id, $setor_sup, $u['nome'], $observacoes ?: null]);
+                INSERT INTO pedidos_suprimentos (numero, impressora_id, setor, solicitante, status, observacoes, acompanhamento_token)
+                VALUES (?, ?, ?, ?, 'Pendente', ?, ?)
+            ")->execute([$numero_sup, $impressora_id, $setor_sup, $u['nome'], $observacoes ?: null, tokenOpaco()]);
 
             $pedido_id = $pdo->lastInsertId();
             $st_item = $pdo->prepare("
