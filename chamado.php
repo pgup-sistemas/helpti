@@ -93,10 +93,11 @@ if (!empty($chamado['inventario_id'])) {
 layoutHeader('Chamado '.$chamado['numero'], 'chamados');
 ?>
 
+<?php breadcrumb([['label'=>'Chamados','href'=>'chamados.php'],['label'=>$chamado['numero']]]); ?>
+
 <div class="page-header">
   <div>
-    <a href="chamados.php" class="text-muted small"><i class="bi bi-arrow-left me-1"></i>Chamados</a>
-    <h1 class="page-title mt-1"><code style="font-size:16px"><?= h($chamado['numero']) ?></code></h1>
+    <h1 class="page-title"><code style="font-size:16px"><?= h($chamado['numero']) ?></code></h1>
   </div>
   <span class="badge <?php
     $m=['Aberto'=>'badge-aberto','Em Andamento'=>'badge-andamento','Pendente'=>'badge-pendente','Concluído'=>'badge-concluido'];
