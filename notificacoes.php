@@ -181,23 +181,15 @@ foreach ($garantias as $r) {
     ];
 }
 
-// Impressoras com toner crítico (≤15% — último snapshot)
-$tabela_snap = (bool)$pdo->query(
-    "SELECT COUNT(*) FROM information_schema.tables
-     WHERE table_schema = DATABASE() AND table_name = 'impressoras_snapshot'"
-)->fetchColumn();
-
+// Impressoras com toner crítico (≤15% — último snapshot materializado, P3-2)
+$tabela_snap = true;
 if ($tabela_snap) {
     $toner_critico = $pdo->query("
         SELECT i.id, i.nome, i.setor,
                s.toner_preto_pct, s.toner_ciano_pct,
                s.toner_magenta_pct, s.toner_amarelo_pct
         FROM impressoras i
-        JOIN impressoras_snapshot s ON s.id = (
-            SELECT id FROM impressoras_snapshot
-            WHERE impressora_id = i.id
-            ORDER BY coletado_em DESC LIMIT 1
-        )
+        JOIN impressoras_ultimo_snapshot s ON s.impressora_id = i.id
         WHERE i.status = 'Ativa'
           AND (
               (s.toner_preto_pct   IS NOT NULL AND s.toner_preto_pct   <= 15) OR
@@ -245,12 +237,9 @@ if ($tabela_snap) {
     $offline = $pdo->query("
         SELECT i.id, i.nome, i.setor, i.alerta_offline_em
         FROM impressoras i
+        JOIN impressoras_ultimo_snapshot s ON s.impressora_id = i.id
         WHERE i.status = 'Ativa'
           AND i.alerta_offline_em IS NOT NULL
-          AND EXISTS (
-              SELECT 1 FROM impressoras_snapshot s
-              WHERE s.impressora_id = i.id
-          )
         ORDER BY i.alerta_offline_em DESC
         LIMIT 5
     ")->fetchAll();

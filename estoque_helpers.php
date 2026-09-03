@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 /**
  * HelpTI — Estoque de suprimentos (fachada).
  * Implementação em src/Estoque.php. Mantido para compatibilidade com o

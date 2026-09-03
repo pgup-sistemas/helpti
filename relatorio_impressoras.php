@@ -22,68 +22,37 @@ $meses_nomes = ['','Janeiro','Fevereiro','Março','Abril','Maio','Junho',
 $mes_ant = $mes === 1 ? 12 : $mes - 1;
 $ano_ant  = $mes === 1 ? $ano - 1 : $ano;
 
-// Verifica se a tabela de snapshots existe
-$tem_snap = (bool)$pdo->query(
-    "SELECT COUNT(*) FROM information_schema.tables
-     WHERE table_schema = DATABASE() AND table_name = 'impressoras_snapshot'"
-)->fetchColumn();
+$tem_snap = true; // schema garantido pelas migrations
 
 $impressoras = [];
 $totais      = ['pag_mes' => 0, 'pag_ant' => 0];
 
 if ($tem_snap) {
-    // Para cada impressora: MAX(mês) - MIN(mês) = páginas no mês
+    // Valores "atuais" vêm da tabela materializada (P3-2); só o cálculo de
+    // páginas por mês precisa varrer o histórico (subquery com índice composto).
     $stmt = $pdo->prepare("
         SELECT
-            i.id,
-            i.nome,
-            i.marca_modelo,
-            i.setor,
-            i.ip,
-            i.status,
-            -- Páginas do mês selecionado
+            i.id, i.nome, i.marca_modelo, i.setor, i.ip, i.status,
             (SELECT MAX(s.paginas_total) - MIN(s.paginas_total)
              FROM impressoras_snapshot s
              WHERE s.impressora_id = i.id
-               AND YEAR(s.coletado_em) = :ano
-               AND MONTH(s.coletado_em) = :mes
+               AND YEAR(s.coletado_em) = :ano AND MONTH(s.coletado_em) = :mes
                AND s.paginas_total IS NOT NULL
             ) AS paginas_mes,
-            -- Páginas do mês anterior
             (SELECT MAX(s.paginas_total) - MIN(s.paginas_total)
              FROM impressoras_snapshot s
              WHERE s.impressora_id = i.id
-               AND YEAR(s.coletado_em) = :ano_ant
-               AND MONTH(s.coletado_em) = :mes_ant
+               AND YEAR(s.coletado_em) = :ano_ant AND MONTH(s.coletado_em) = :mes_ant
                AND s.paginas_total IS NOT NULL
             ) AS paginas_ant,
-            -- Total acumulado (leitura mais recente)
-            (SELECT s.paginas_total FROM impressoras_snapshot s
-             WHERE s.impressora_id = i.id AND s.paginas_total IS NOT NULL
-             ORDER BY s.coletado_em DESC LIMIT 1
-            ) AS paginas_total,
-            -- Toner mais recente
-            (SELECT s.toner_preto_pct FROM impressoras_snapshot s
-             WHERE s.impressora_id = i.id AND s.toner_preto_pct IS NOT NULL
-             ORDER BY s.coletado_em DESC LIMIT 1
-            ) AS toner_preto,
-            (SELECT s.toner_ciano_pct FROM impressoras_snapshot s
-             WHERE s.impressora_id = i.id AND s.toner_ciano_pct IS NOT NULL
-             ORDER BY s.coletado_em DESC LIMIT 1
-            ) AS toner_ciano,
-            (SELECT s.toner_magenta_pct FROM impressoras_snapshot s
-             WHERE s.impressora_id = i.id AND s.toner_magenta_pct IS NOT NULL
-             ORDER BY s.coletado_em DESC LIMIT 1
-            ) AS toner_magenta,
-            (SELECT s.toner_amarelo_pct FROM impressoras_snapshot s
-             WHERE s.impressora_id = i.id AND s.toner_amarelo_pct IS NOT NULL
-             ORDER BY s.coletado_em DESC LIMIT 1
-            ) AS toner_amarelo,
-            (SELECT s.coletado_em FROM impressoras_snapshot s
-             WHERE s.impressora_id = i.id
-             ORDER BY s.coletado_em DESC LIMIT 1
-            ) AS ultima_coleta
+            u.paginas_total     AS paginas_total,
+            u.toner_preto_pct   AS toner_preto,
+            u.toner_ciano_pct   AS toner_ciano,
+            u.toner_magenta_pct AS toner_magenta,
+            u.toner_amarelo_pct AS toner_amarelo,
+            u.coletado_em       AS ultima_coleta
         FROM impressoras i
+        LEFT JOIN impressoras_ultimo_snapshot u ON u.impressora_id = i.id
         WHERE i.status = 'Ativa'
           " . ($filtro_setor ? "AND i.setor = :setor" : "") . "
         ORDER BY paginas_mes DESC, i.setor, i.nome
