@@ -274,6 +274,72 @@ layoutHeader('Ferramentas TI', 'ferramentas');
     </div>
   </div>
 
+  <!-- ══════════════════════════════════════════════════════════════
+       6. LIGAR / DESLIGAR ESTAÇÕES
+  ══════════════════════════════════════════════════════════════ -->
+  <div class="col-12">
+    <div class="card h-100">
+      <div class="card-header d-flex align-items-center gap-2">
+        <i class="bi bi-power text-primary fs-5"></i>
+        <strong>Ligar / Desligar Estações</strong>
+        <span id="pw-badge" class="badge bg-secondary ms-auto" style="font-size:11px">…</span>
+      </div>
+      <div class="card-body">
+        <p class="text-muted mb-3" style="font-size:13px">
+          Desliga, reinicia ou liga estações Windows da rede local. Desligar/reiniciar usa
+          <code>net rpc</code> com a conta de serviço definida em <code>config.local.php</code>;
+          ligar usa Wake-on-LAN (MAC da tabela <a href="hosts_rede.php">Hosts de Rede</a>).
+        </p>
+
+        <div class="row g-3">
+          <div class="col-lg-4">
+            <label class="form-label fw-semibold" style="font-size:12px">Ação</label>
+            <select id="pw-acao" class="form-select form-select-sm">
+              <option value="desligar">Desligar</option>
+              <option value="reiniciar">Reiniciar</option>
+              <option value="cancelar">Cancelar desligamento agendado</option>
+              <option value="ligar">Ligar (Wake-on-LAN)</option>
+            </select>
+
+            <div id="pw-opts" class="mt-2">
+              <label class="form-label fw-semibold" style="font-size:12px">Carência (segundos)</label>
+              <input type="number" id="pw-segundos" class="form-control form-control-sm" value="30" min="0" max="3600" style="max-width:120px">
+              <label class="form-label fw-semibold mt-2" style="font-size:12px">Mensagem na tela (opcional)</label>
+              <input type="text" id="pw-msg" class="form-control form-control-sm" maxlength="240" placeholder="Ex: Desligamento programado pela TI">
+            </div>
+          </div>
+
+          <div class="col-lg-8">
+            <div class="d-flex justify-content-between align-items-center">
+              <label class="form-label fw-semibold" style="font-size:12px">Alvos — um por linha (IP ou MAC)</label>
+              <button type="button" id="pw-toggle-hosts" class="btn btn-outline-secondary btn-xs" style="font-size:11px">
+                <i class="bi bi-list-check me-1"></i>Selecionar de Hosts de Rede
+              </button>
+            </div>
+            <textarea id="pw-alvos" class="form-control form-control-sm" rows="4"
+              placeholder="192.168.1.50&#10;192.168.1.51&#10;AA:BB:CC:DD:EE:FF"
+              style="font-family:monospace;font-size:12px"></textarea>
+
+            <div id="pw-hosts-box" class="mt-2 border rounded p-2" style="display:none;max-height:240px;overflow-y:auto;font-size:12px">
+              <div class="text-muted">Carregando hosts…</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="d-flex gap-2 align-items-center mt-3">
+          <button id="pw-executar" class="btn btn-danger btn-sm fw-semibold">
+            <i class="bi bi-power me-1"></i><span id="pw-executar-txt">Desligar estações</span>
+          </button>
+          <span class="text-muted" style="font-size:12px">Ação registrada no log de auditoria. Máx. 80 alvos por vez.</span>
+        </div>
+
+        <div id="pw-resultado" class="mt-3" style="display:none">
+          <pre id="pw-log" style="background:#0f172a;color:#e2e8f0;padding:10px;border-radius:8px;font-size:11px;max-height:260px;overflow-y:auto;margin:0"></pre>
+        </div>
+      </div>
+    </div>
+  </div>
+
 </div><!-- /row -->
 
 <script>
@@ -520,6 +586,113 @@ function carregarTecnicos() {
 
 carregarTecnicos();
 document.getElementById('btn-refresh-tecnicos').addEventListener('click', carregarTecnicos);
+
+// ══════════════════════════════════════════════════════════════
+// 6. LIGAR / DESLIGAR ESTAÇÕES
+// ══════════════════════════════════════════════════════════════
+(function() {
+  const acao   = document.getElementById('pw-acao');
+  const opts   = document.getElementById('pw-opts');
+  const alvos  = document.getElementById('pw-alvos');
+  const btn    = document.getElementById('pw-executar');
+  const btnTxt = document.getElementById('pw-executar-txt');
+  const box    = document.getElementById('pw-hosts-box');
+  const log    = document.getElementById('pw-log');
+  const rBox   = document.getElementById('pw-resultado');
+  const badge  = document.getElementById('pw-badge');
+  let hostsCarregados = false;
+
+  const LABEL = {desligar:'Desligar estações', reiniciar:'Reiniciar estações',
+                 cancelar:'Cancelar desligamento', ligar:'Ligar estações'};
+
+  function esc(s){ return String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+  function sync() {
+    const a = acao.value;
+    opts.style.display = (a === 'desligar' || a === 'reiniciar') ? '' : 'none';
+    btnTxt.textContent = LABEL[a];
+    btn.className = 'btn btn-sm fw-semibold ' + (a === 'ligar' ? 'btn-success' : (a === 'cancelar' ? 'btn-secondary' : 'btn-danger'));
+  }
+  acao.addEventListener('change', sync);
+  sync();
+
+  fetch('api_ferramentas.php?action=power_hosts').then(r=>r.json()).then(d=>{
+    if (!d.ok) return;
+    if (d.configurado) { badge.textContent = 'Pronto'; badge.className = 'badge bg-success ms-auto'; }
+    else { badge.textContent = 'Sem credenciais — só WOL'; badge.className = 'badge bg-warning text-dark ms-auto'; }
+  });
+
+  document.getElementById('pw-toggle-hosts').addEventListener('click', function() {
+    if (box.style.display === 'none') {
+      box.style.display = 'block';
+      if (!hostsCarregados) carregarHosts();
+    } else {
+      box.style.display = 'none';
+    }
+  });
+
+  function carregarHosts() {
+    fetch('api_ferramentas.php?action=power_hosts').then(r=>r.json()).then(d=>{
+      hostsCarregados = true;
+      if (!d.ok || !d.hosts.length) { box.innerHTML = '<div class="text-muted">Nenhum host com MAC conhecido. Rode o Scanner de Rede primeiro.</div>'; return; }
+      const grupos = {};
+      d.hosts.forEach(h => { (grupos[h.setor] = grupos[h.setor] || []).push(h); });
+      let html = '<div class="mb-2"><button type="button" class="btn btn-outline-primary btn-xs" id="pw-add-sel">Adicionar selecionados aos alvos</button></div>';
+      Object.keys(grupos).sort().forEach(setor => {
+        html += `<div class="fw-semibold mt-2" style="font-size:11px;color:#6b7280">${esc(setor)}</div>`;
+        grupos[setor].forEach(h => {
+          html += `<label class="d-flex align-items-center gap-2 py-1" style="cursor:pointer">
+            <input type="checkbox" class="pw-host" value="${esc(h.ip)}" data-mac="${esc(h.mac)}">
+            <span style="font-family:monospace">${esc(h.ip)}</span>
+            <span class="text-muted">${esc(h.hostname || '')}</span>
+            ${h.online ? '<span class="badge bg-success" style="font-size:9px">on</span>' : '<span class="badge bg-secondary" style="font-size:9px">off</span>'}
+          </label>`;
+        });
+      });
+      box.innerHTML = html;
+      document.getElementById('pw-add-sel').addEventListener('click', () => {
+        const sel = [...box.querySelectorAll('.pw-host:checked')];
+        if (!sel.length) return;
+        const usarMac = acao.value === 'ligar';
+        const linhas = sel.map(c => usarMac ? (c.dataset.mac || c.value) : c.value);
+        const atual = alvos.value.trim();
+        alvos.value = (atual ? atual + '\n' : '') + linhas.join('\n');
+      });
+    });
+  }
+
+  btn.addEventListener('click', function() {
+    const lista = alvos.value.split(/[\r\n]+/).map(s=>s.trim()).filter(Boolean);
+    if (!lista.length) { alert('Informe ao menos um alvo.'); return; }
+    const a = acao.value;
+    const verbo = {desligar:'DESLIGAR', reiniciar:'REINICIAR', cancelar:'cancelar o desligamento de', ligar:'LIGAR'}[a];
+    if (!confirm(`Confirmar: ${verbo} ${lista.length} estação(ões)?`)) return;
+
+    btn.disabled = true;
+    rBox.style.display = 'block';
+    log.textContent = 'Executando em ' + lista.length + ' alvo(s)…';
+
+    fetch('api_ferramentas.php', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      body: new URLSearchParams({
+        action: 'power_acao', csrf_token: CSRF, tipo: a,
+        segundos: document.getElementById('pw-segundos').value || '30',
+        mensagem: document.getElementById('pw-msg').value || '',
+        alvos: lista.join('\n')
+      })
+    })
+    .then(r=>r.json())
+    .then(d=>{
+      btn.disabled = false;
+      if (!d.ok) { log.textContent = 'Erro: ' + (d.erro || 'falha'); return; }
+      let txt = `${d.sucesso}/${d.total} com sucesso\n\n`;
+      d.resultados.forEach(r => { txt += `${r.ok ? '✓' : '✗'} ${r.alvo}  —  ${r.saida}\n`; });
+      log.textContent = txt;
+    })
+    .catch(() => { btn.disabled = false; log.textContent = 'Erro de rede.'; });
+  });
+})();
 </script>
 
 <?php layoutFooter(); ?>

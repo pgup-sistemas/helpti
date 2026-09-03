@@ -27,6 +27,12 @@ define('GEMINI_API_KEY',  $_cfg['GEMINI_API_KEY']  ?? '');
 // Token do endpoint health.php (defina em config.local.php em produção)
 define('HEALTH_TOKEN',    $_cfg['HEALTH_TOKEN']    ?? '');
 
+// Desligamento/reinício remoto de estações Windows (Ferramentas de TI).
+// Conta de administrador local/de domínio das estações; usada por `net rpc`.
+define('SHUTDOWN_USER',   $_cfg['SHUTDOWN_USER']   ?? '');
+define('SHUTDOWN_PASS',   $_cfg['SHUTDOWN_PASS']   ?? '');
+define('SHUTDOWN_DOMAIN', $_cfg['SHUTDOWN_DOMAIN'] ?? '');
+
 unset($_cfg);
 
 date_default_timezone_set('America/Sao_Paulo');

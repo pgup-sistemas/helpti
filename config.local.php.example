@@ -20,4 +20,13 @@ return [
 
     // Token para o endpoint de monitoramento health.php  (gere: openssl rand -hex 24)
     'HEALTH_TOKEN'   => '',
+
+    // Desligar/reiniciar estações Windows pela rede (Ferramentas de TI).
+    // Requer o pacote `samba-common-bin` (comando `net`) no servidor e uma conta
+    // de administrador local/de domínio das estações. Deixe em branco p/ desabilitar.
+    // Nas estações: firewall liberando "Instrumentação de Gerenciamento do Windows (WMI)"
+    // ou compartilhamento admin (RPC/445), na rede local.
+    'SHUTDOWN_USER'   => '',        // ex: 'administrador'
+    'SHUTDOWN_PASS'   => '',
+    'SHUTDOWN_DOMAIN' => '',        // ex: 'CLINICA'  (vazio = conta local da estação)
 ];

@@ -278,4 +278,90 @@ if ($action === 'chamados_tecnicos') {
     exit;
 }
 
+// ── 7. Ligar / desligar / reiniciar estações da rede ─────────────────────────
+if ($action === 'power_hosts') {
+    // Candidatos para o seletor: hosts com MAC conhecido, agrupáveis por setor.
+    $rows = db()->query("
+        SELECT h.ip, h.mac_address, h.hostname, h.online,
+               COALESCE(NULLIF(h.setor,''), i.setor) AS setor_ef,
+               COALESCE(i.tipo, h.tipo) AS tipo
+        FROM hosts_rede h
+        LEFT JOIN inventario i ON i.id = h.inventario_id
+        WHERE h.mac_address <> ''
+        ORDER BY setor_ef IS NULL, setor_ef, INET_ATON(h.ip)
+    ")->fetchAll();
+    $lista = [];
+    foreach ($rows as $r) {
+        if (!RedePower::ipPrivado((string) $r['ip'])) continue;
+        $lista[] = [
+            'ip'       => $r['ip'],
+            'mac'      => $r['mac_address'],
+            'hostname' => $r['hostname'] ?: '',
+            'setor'    => $r['setor_ef'] ?: 'Sem setor',
+            'tipo'     => $r['tipo'] ?: '',
+            'online'   => (int) $r['online'] === 1,
+        ];
+    }
+    echo json_encode(['ok' => true, 'configurado' => RedePower::configurado(), 'hosts' => $lista]);
+    exit;
+}
+
+if ($action === 'power_acao') {
+    csrfVerify();
+    $tipo     = $_POST['tipo'] ?? '';
+    $segundos = (int) ($_POST['segundos'] ?? 30);
+    $mensagem = trim($_POST['mensagem'] ?? '');
+    $bruto    = (string) ($_POST['alvos'] ?? '');
+
+    if (!in_array($tipo, RedePower::ACOES, true)) {
+        echo json_encode(['ok' => false, 'erro' => 'Ação inválida.']); exit;
+    }
+    if (in_array($tipo, RedePower::ACOES_RPC, true) && !RedePower::configurado()) {
+        echo json_encode(['ok' => false, 'erro' => 'Credenciais de desligamento não configuradas em config.local.php.']); exit;
+    }
+
+    // Uma entrada por linha: "IP", "MAC" ou "IP\tMAC".
+    $linhas = array_filter(array_map('trim', preg_split('/[\r\n]+/', $bruto)));
+    $linhas = array_slice(array_values(array_unique($linhas)), 0, 80);
+    if (!$linhas) {
+        echo json_encode(['ok' => false, 'erro' => 'Nenhum alvo informado.']); exit;
+    }
+
+    // Mapa IP→MAC do banco, para Wake-on-LAN a partir do IP.
+    $macPorIp = [];
+    foreach (db()->query("SELECT ip, mac_address FROM hosts_rede WHERE mac_address <> ''") as $r) {
+        $macPorIp[$r['ip']] = $r['mac_address'];
+    }
+
+    $resultados = [];
+    foreach ($linhas as $linha) {
+        $campos = preg_split('/[\s,;]+/', $linha);
+        $ip = $mac = '';
+        foreach ($campos as $c) {
+            if (filter_var($c, FILTER_VALIDATE_IP, FILTER_FLAG_IPV4)) $ip = $c;
+            elseif (RedePower::macValido($c)) $mac = $c;
+        }
+
+        if ($tipo === 'ligar') {
+            if ($mac === '' && $ip !== '') $mac = $macPorIp[$ip] ?? '';
+            $alvo = $mac !== '' ? $mac : $linha;
+            $res  = $mac !== ''
+                ? RedePower::ligar($mac)
+                : ['ok' => false, 'saida' => 'MAC não encontrado para este alvo.'];
+        } else {
+            $alvo = $ip !== '' ? $ip : $linha;
+            $res  = $ip !== ''
+                ? RedePower::executar($tipo, $ip, $segundos, $mensagem)
+                : ['ok' => false, 'saida' => 'IP inválido.'];
+        }
+
+        auditLog('rede_power', 'host', 0, "{$tipo} {$alvo} => " . ($res['ok'] ? 'ok' : 'falha'));
+        $resultados[] = ['alvo' => $alvo, 'ok' => $res['ok'], 'saida' => mb_substr($res['saida'], 0, 400)];
+    }
+
+    $sucesso = count(array_filter($resultados, fn($r) => $r['ok']));
+    echo json_encode(['ok' => true, 'total' => count($resultados), 'sucesso' => $sucesso, 'resultados' => $resultados]);
+    exit;
+}
+
 echo json_encode(['ok' => false, 'erro' => 'Ação inválida.']);
