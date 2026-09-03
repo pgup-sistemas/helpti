@@ -10,12 +10,15 @@ $filtros = [
     'resp'    => $_GET['resp']    ?? '',
     'setor'   => $_GET['setor']   ?? '',
     'busca'   => $_GET['busca']   ?? '',
-    'mes'     => $_GET['mes']     ?? date('m'),
-    'ano'     => $_GET['ano']     ?? date('Y'),
+    // ausente => mês/ano atual ; presente e vazio ('') => "Todos"
+    'mes'     => array_key_exists('mes', $_GET) ? $_GET['mes'] : date('m'),
+    'ano'     => array_key_exists('ano', $_GET) ? $_GET['ano'] : date('Y'),
 ];
 
-$where = ["YEAR(c.criado_em)=:ano","MONTH(c.criado_em)=:mes","c.deleted_at IS NULL"];
-$params = ['ano'=>$filtros['ano'],'mes'=>$filtros['mes']];
+$where  = ["c.deleted_at IS NULL"];
+$params = [];
+if ($filtros['mes'] !== '') { $where[] = "MONTH(c.criado_em)=:mes"; $params['mes'] = $filtros['mes']; }
+if ($filtros['ano'] !== '') { $where[] = "YEAR(c.criado_em)=:ano";  $params['ano'] = $filtros['ano']; }
 
 if ($filtros['status'])          { $where[] = "c.status=:status";       $params['status'] = $filtros['status']; }
 if ($filtros['resp'] === '0')    { $where[] = "c.responsavel_id IS NULL"; }
@@ -65,16 +68,18 @@ function bs(string $s): string {
       <div class="col-md-2">
         <label class="form-label fw-semibold" style="font-size:12px">Mês</label>
         <select name="mes" class="form-select form-select-sm">
+          <option value="" <?= $filtros['mes']===''?'selected':'' ?>>Todos</option>
           <?php for($m=1;$m<=12;$m++): ?>
-            <option value="<?= $m ?>" <?= $m==(int)$filtros['mes']?'selected':'' ?>><?= date('F',mktime(0,0,0,$m,1)) ?></option>
+            <option value="<?= $m ?>" <?= $filtros['mes']!=='' && $m==(int)$filtros['mes']?'selected':'' ?>><?= date('F',mktime(0,0,0,$m,1)) ?></option>
           <?php endfor; ?>
         </select>
       </div>
       <div class="col-md-1">
         <label class="form-label fw-semibold" style="font-size:12px">Ano</label>
         <select name="ano" class="form-select form-select-sm">
-          <?php for($a=2024;$a<=2027;$a++): ?>
-            <option value="<?= $a ?>" <?= $a==(int)$filtros['ano']?'selected':'' ?>><?= $a ?></option>
+          <option value="" <?= $filtros['ano']===''?'selected':'' ?>>Todos</option>
+          <?php for($a=2024;$a<=(int)date('Y')+1;$a++): ?>
+            <option value="<?= $a ?>" <?= $filtros['ano']!=='' && $a==(int)$filtros['ano']?'selected':'' ?>><?= $a ?></option>
           <?php endfor; ?>
         </select>
       </div>
@@ -123,7 +128,7 @@ function bs(string $s): string {
       </thead>
       <tbody>
         <?php foreach ($chamados as $c): ?>
-        <tr>
+        <tr data-href="chamado.php?id=<?= $c['id'] ?>">
           <td><code style="font-size:12px"><?= h($c['numero']) ?></code></td>
           <td style="max-width:220px"><div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="<?= h($c['descricao']) ?>"><?= h($c['descricao']) ?></div></td>
           <td style="font-size:12px"><?= h($c['setor']) ?></td>

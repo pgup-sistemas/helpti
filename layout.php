@@ -132,13 +132,18 @@ body.sidebar-collapsed .nav-section .nav-sec-arrow{display:none}
   .table-sortable thead th{position:static}
 }
 
+/* Linhas de tabela clicáveis (data-href) */
+tr[data-href]{cursor:pointer}
+tr[data-href]:hover td{background:var(--bg-hover)}
+
 /* Botão de copiar (IP, número de série etc.) */
 .btn-copy{background:none;border:none;padding:0 2px;color:var(--tx-faint);cursor:pointer;font-size:11px;vertical-align:middle;transition:.15s}
 .btn-copy:hover{color:var(--brand)}
 .btn-copy.copiado{color:#22c55e}
 
 /* ── Stat cards ── */
-.stat-card{background:var(--bg-surface);border-radius:10px;padding:1.2rem 1.4rem;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+.stat-card{background:var(--bg-surface);border-radius:10px;padding:1.2rem 1.4rem;box-shadow:0 1px 4px rgba(0,0,0,.06);transition:box-shadow .15s,transform .15s}
+a.stat-card:hover{box-shadow:0 4px 14px rgba(0,0,0,.12);transform:translateY(-1px)}
 .stat-num{font-size:28px;font-weight:700;line-height:1}
 .stat-label{font-size:12px;color:var(--tx-muted);margin-top:4px}
 
@@ -858,6 +863,18 @@ function layoutFooter(): void {
       if (this.value.trim().length >= 2 && dropdown.innerHTML) dropdown.classList.add('aberto');
     });
   })();
+
+  // ── Linhas de tabela clicáveis (<tr data-href="...">) ──────
+  // Clique na linha navega; cliques em links/botões/forms/dropdowns são ignorados.
+  document.addEventListener('click', function (e) {
+    const tr = e.target.closest('tr[data-href]');
+    if (!tr) return;
+    if (e.target.closest('a, button, input, select, label, form, .dropdown')) return;
+    if (window.getSelection && String(window.getSelection())) return; // não navega ao selecionar texto
+    const url = tr.getAttribute('data-href');
+    if (e.ctrlKey || e.metaKey || e.button === 1) window.open(url, '_blank');
+    else window.location.href = url;
+  });
 
   // ── Copiar texto (IP, número de série etc.) ─────────────────
   function copiarTexto(btn, texto) {
