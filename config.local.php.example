@@ -26,7 +26,16 @@ return [
     // de administrador local/de domínio das estações. Deixe em branco p/ desabilitar.
     // Nas estações: firewall liberando "Instrumentação de Gerenciamento do Windows (WMI)"
     // ou compartilhamento admin (RPC/445), na rede local.
-    'SHUTDOWN_USER'   => '',        // ex: 'administrador'
-    'SHUTDOWN_PASS'   => '',
-    'SHUTDOWN_DOMAIN' => '',        // ex: 'CLINICA'  (vazio = conta local da estação)
+    // -- Rede COM domínio (Active Directory): conta de domínio com admin nas estações
+    'SHUTDOWN_USER'       => '',    // ex: 'ti.suporte'
+    'SHUTDOWN_PASS'       => '',
+    'SHUTDOWN_DOMAIN'     => '',    // nome NetBIOS, ex: 'ALPHACORP'  (vazio se não houver domínio)
+
+    // -- Rede SEM domínio (WORKGROUP): mesmo admin LOCAL em todas as estações.
+    //    Requer, uma vez por estação (ou via GPO):
+    //    reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" ^
+    //        /v LocalAccountTokenFilterPolicy /t REG_DWORD /d 1 /f
+    //    (a conta interna "Administrador" (RID 500) dispensa esse ajuste)
+    'SHUTDOWN_LOCAL_USER' => '',    // ex: 'Administrador'
+    'SHUTDOWN_LOCAL_PASS' => '',
 ];

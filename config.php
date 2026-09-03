@@ -32,6 +32,10 @@ define('HEALTH_TOKEN',    $_cfg['HEALTH_TOKEN']    ?? '');
 define('SHUTDOWN_USER',   $_cfg['SHUTDOWN_USER']   ?? '');
 define('SHUTDOWN_PASS',   $_cfg['SHUTDOWN_PASS']   ?? '');
 define('SHUTDOWN_DOMAIN', $_cfg['SHUTDOWN_DOMAIN'] ?? '');
+// Conta de administrador LOCAL das estações (redes sem domínio / WORKGROUP).
+// Usada quando a de domínio não existe ou é recusada.
+define('SHUTDOWN_LOCAL_USER', $_cfg['SHUTDOWN_LOCAL_USER'] ?? '');
+define('SHUTDOWN_LOCAL_PASS', $_cfg['SHUTDOWN_LOCAL_PASS'] ?? '');
 
 unset($_cfg);
 

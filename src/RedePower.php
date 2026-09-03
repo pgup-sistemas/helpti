@@ -5,7 +5,9 @@ declare(strict_types=1);
  * Desligar / reiniciar / ligar estações da rede local.
  *
  * - Desligar/reiniciar/cancelar: `net rpc` (pacote samba-common-bin) contra o
- *   RPC do Windows, autenticando com a conta de SHUTDOWN_USER/PASS/DOMAIN.
+ *   RPC do Windows. Tenta primeiro a conta de domínio (SHUTDOWN_USER/PASS/DOMAIN)
+ *   e, se ela for recusada, tenta a conta local (SHUTDOWN_LOCAL_USER/PASS) —
+ *   útil para máquinas em WORKGROUP.
  * - Ligar: Wake-on-LAN (magic packet UDP), não precisa de credenciais.
  *
  * Todos os alvos são restritos a IPs privados (RFC1918) — a ferramenta é para
@@ -19,7 +21,8 @@ final class RedePower
 
     public static function configurado(): bool
     {
-        return SHUTDOWN_USER !== '' && SHUTDOWN_PASS !== '';
+        return (SHUTDOWN_USER !== '' && SHUTDOWN_PASS !== '')
+            || (SHUTDOWN_LOCAL_USER !== '' && SHUTDOWN_LOCAL_PASS !== '');
     }
 
     public static function ipPrivado(string $ip): bool
@@ -51,62 +54,118 @@ final class RedePower
             return ['ok' => false, 'saida' => 'IP fora da faixa privada da rede local.'];
         }
         if (!self::configurado()) {
-            return ['ok' => false, 'saida' => 'Credenciais de desligamento não configuradas (config.local.php).'];
+            return ['ok' => false, 'saida' => 'Nenhuma credencial configurada (config.local.php).'];
         }
 
         $segundos = max(0, min(3600, $segundos));
-        $cred     = SHUTDOWN_USER . '%' . SHUTDOWN_PASS;
 
-        $partes = ['net', 'rpc'];
+        // Argumentos da ação (sem credencial).
+        $base = ['net', 'rpc'];
         if ($acao === 'cancelar') {
-            $partes[] = 'abortshutdown';
+            $base[] = 'abortshutdown';
         } else {
-            $partes[] = 'shutdown';
-            $partes[] = '-f';
-            $partes[] = '-t';
-            $partes[] = (string) $segundos;
+            array_push($base, 'shutdown', '-f', '-t', (string) $segundos);
             if ($acao === 'reiniciar') {
-                $partes[] = '-r';
+                $base[] = '-r';
             }
             $msg = trim($mensagem);
             if ($msg !== '') {
-                $partes[] = '-C';
-                $partes[] = mb_substr($msg, 0, 240);
+                array_push($base, '-C', mb_substr($msg, 0, 240));
             }
         }
-        $partes[] = '-I';
-        $partes[] = $ip;
-        $partes[] = '-U';
-        $partes[] = $cred;
-        if (SHUTDOWN_DOMAIN !== '') {
-            $partes[] = '-W';
-            $partes[] = SHUTDOWN_DOMAIN;
+        array_push($base, '-I', $ip);
+
+        // 1ª tentativa: conta de domínio.
+        $tentativas = [];
+        if (SHUTDOWN_USER !== '' && SHUTDOWN_PASS !== '') {
+            $tentativas[] = [SHUTDOWN_USER, SHUTDOWN_PASS, SHUTDOWN_DOMAIN, 'domínio'];
+        }
+        // 2ª tentativa: conta local (WORKGROUP). Usa o nome NetBIOS da máquina
+        // como "domínio" para forçar autenticação na SAM local.
+        if (SHUTDOWN_LOCAL_USER !== '' && SHUTDOWN_LOCAL_PASS !== '') {
+            $wg = self::netbiosNome($ip);
+            $tentativas[] = [SHUTDOWN_LOCAL_USER, SHUTDOWN_LOCAL_PASS, $wg, 'conta local'];
         }
 
-        $cmd = implode(' ', array_map('escapeshellarg', $partes)) . ' 2>&1';
+        $ultima = ['ok' => false, 'saida' => 'Sem resposta do host.'];
+        foreach ($tentativas as [$user, $pass, $wg, $rotulo]) {
+            $ultima = self::rodarNet($base, $user, $pass, $wg, $acao);
+            if ($ultima['ok']) {
+                if (count($tentativas) > 1 && $rotulo === 'conta local') {
+                    $ultima['saida'] .= ' (via conta local)';
+                }
+                return $ultima;
+            }
+            // Só cai para a próxima credencial se o erro foi de autenticação.
+            $s = strtolower($ultima['saida']);
+            $authFail = str_contains($s, 'logon_failure')
+                     || (str_contains($s, 'bad smb2') && str_contains($s, 'access_denied'))
+                     || str_contains($s, 'no_such_user');
+            if (!$authFail) {
+                break;
+            }
+        }
 
-        $saida = shell_exec('timeout 20 ' . $cmd);
-        $saida = trim((string) $saida);
-        // net rpc: "Shutdown of remote machine succeeded" / "Shutdown successfully aborted"
+        return self::humanizarErro($ultima, $acao);
+    }
+
+    /**
+     * @param list<string> $base
+     * @return array{ok:bool, saida:string}
+     */
+    private static function rodarNet(array $base, string $user, string $pass, string $workgroup, string $acao): array
+    {
+        $partes = $base;
+        array_push($partes, '-U', $user . '%' . $pass);
+        if ($workgroup !== '') {
+            array_push($partes, '-W', $workgroup);
+        }
+        $cmd = 'timeout 20 ' . implode(' ', array_map('escapeshellarg', $partes)) . ' 2>&1';
+
+        $saida = trim((string) shell_exec($cmd));
         $ok = stripos($saida, 'succe') !== false      // succeeded / successfully
            || stripos($saida, 'aborted') !== false
            || ($saida === '' && $acao === 'cancelar');
 
-        // Sanitiza a credencial de qualquer eco na saída.
-        $saida = str_replace([SHUTDOWN_PASS, $cred], ['***', SHUTDOWN_USER . '%***'], $saida);
+        // Nunca deixa a senha vazar na saída.
+        $saida = str_replace([$pass, $user . '%' . $pass], ['***', $user . '%***'], $saida);
 
-        if (!$ok) {
-            $s = strtolower($saida);
-            if (str_contains($s, 'logon_failure') || (str_contains($s, 'bad smb2') && str_contains($s, 'access_denied'))) {
-                $saida = 'Credencial recusada nesta máquina (não está no domínio ' . SHUTDOWN_DOMAIN . '? conta local diferente?).';
-            } elseif (str_contains($s, 'access_denied')) {
-                $saida = 'Autenticou, mas a conta não tem direito de desligar remotamente (não é admin local / falta LocalAccountTokenFilterPolicy).';
-            } elseif (str_contains($s, 'connection_refused') || str_contains($s, 'could not connect') || str_contains($s, 'timed out') || str_contains($s, 'unreachable')) {
-                $saida = 'Sem conexão — host desligado ou firewall bloqueando RPC/445.';
-            }
+        return ['ok' => $ok, 'saida' => $saida];
+    }
+
+    /**
+     * @param array{ok:bool, saida:string} $res
+     * @return array{ok:bool, saida:string}
+     */
+    private static function humanizarErro(array $res, string $acao): array
+    {
+        if ($res['ok']) {
+            return ['ok' => true, 'saida' => $res['saida'] !== '' ? $res['saida'] : 'OK'];
         }
+        $s = strtolower($res['saida']);
+        if (str_contains($s, 'logon_failure') || (str_contains($s, 'bad smb2') && str_contains($s, 'access_denied')) || str_contains($s, 'no_such_user')) {
+            $msg = 'Credencial recusada nesta máquina (usuário/senha não conferem no domínio nem na conta local).';
+        } elseif (str_contains($s, 'access_denied')) {
+            $msg = 'Autenticou, mas a conta não pode desligar remotamente — precisa ser Administrador local e ter LocalAccountTokenFilterPolicy=1.';
+        } elseif (str_contains($s, 'connection_refused') || str_contains($s, 'could not connect') || str_contains($s, 'timed out') || str_contains($s, 'unreachable') || str_contains($s, 'host_unreachable')) {
+            $msg = 'Sem conexão — host desligado ou firewall bloqueando RPC/445.';
+        } else {
+            $msg = $res['saida'] !== '' ? $res['saida'] : 'Falha desconhecida.';
+        }
+        return ['ok' => false, 'saida' => $msg];
+    }
 
-        return ['ok' => $ok, 'saida' => $saida !== '' ? $saida : ($ok ? 'OK' : 'Sem resposta do host.')];
+    /** Nome NetBIOS da máquina (registro <20> = File Server, senão <00> único). */
+    private static function netbiosNome(string $ip): string
+    {
+        $out = (string) shell_exec('timeout 5 nmblookup -A ' . escapeshellarg($ip) . ' 2>/dev/null');
+        if (preg_match('/^\s*([A-Za-z0-9_-]{1,15})\s+<20>/m', $out, $m)) {
+            return strtoupper($m[1]);
+        }
+        if (preg_match('/^\s*([A-Za-z0-9_-]{1,15})\s+<00>\s+-\s+[BHMP]/m', $out, $m)) {
+            return strtoupper($m[1]);
+        }
+        return '';
     }
 
     /**
