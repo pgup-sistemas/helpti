@@ -111,8 +111,15 @@ $chamado_detalhe    = null;
 $historico          = [];
 $chamado_erro_busca = null;
 $acesso_completo    = false;
-$numero_chamado  = isset($_GET['numero_chamado']) ? strtoupper(trim($_GET['numero_chamado'])) : '';
+$numero_chamado  = trim($_GET['numero_chamado'] ?? '');
 $token_chamado   = trim($_GET['t'] ?? $_GET['token'] ?? '');
+// Fallback: usuário colou o link inteiro no campo de número (o JS normalmente já trata)
+if (preg_match('/[?&](numero_chamado|numero_sup)=/', $numero_chamado)) {
+    parse_str(ltrim(strstr($numero_chamado, '?') ?: $numero_chamado, '?'), $_qs);
+    $numero_chamado = trim($_qs['numero_chamado'] ?? $_qs['numero_sup'] ?? '');
+    if (!$token_chamado) $token_chamado = trim($_qs['t'] ?? '');
+}
+$numero_chamado  = strtoupper($numero_chamado);
 $lista_chamados  = []; // mantido para compatibilidade de template — sempre vazio
 
 if ($numero_chamado) {
@@ -211,8 +218,14 @@ $pedido_detalhe  = null;
 $itens_detalhe   = [];
 $sup_erro_busca  = null;
 $acesso_sup_completo = false;
-$numero_sup_busca = isset($_GET['numero_sup']) ? strtoupper(trim($_GET['numero_sup'])) : '';
+$numero_sup_busca = trim($_GET['numero_sup'] ?? '');
 $token_sup        = trim($_GET['t'] ?? $_GET['token'] ?? '');
+if (preg_match('/[?&](numero_chamado|numero_sup)=/', $numero_sup_busca)) {
+    parse_str(ltrim(strstr($numero_sup_busca, '?') ?: $numero_sup_busca, '?'), $_qs);
+    $numero_sup_busca = trim($_qs['numero_sup'] ?? $_qs['numero_chamado'] ?? '');
+    if (!$token_sup) $token_sup = trim($_qs['t'] ?? '');
+}
+$numero_sup_busca = strtoupper($numero_sup_busca);
 $lista_pedidos    = [];
 $fs_paginas       = 0;
 
@@ -711,27 +724,23 @@ elseif ($aba === 'ti' && $subaba === 'acompanhar'):
   <!-- RASTREAR CHAMADO (sem listagem pública — P0-4) -->
   <div class="panel-card">
     <div class="panel-head">
-      <div><h2><i class="bi bi-pc-display-horizontal"></i> Rastrear Chamado</h2><p>Informe o número e o código de acompanhamento</p></div>
+      <div><h2><i class="bi bi-pc-display-horizontal"></i> Rastrear Chamado</h2><p>Informe o número ou cole o link de acompanhamento</p></div>
     </div>
     <div class="panel-body">
-      <form method="get" class="row g-2 align-items-end">
+      <form method="get" class="row g-2 align-items-end" data-rastrear="ti">
         <input type="hidden" name="aba" value="ti">
         <input type="hidden" name="subaba" value="acompanhar">
-        <div class="col-12 col-md-5">
-          <label class="form-label fw-bold text-primary" style="font-size:12px">Número do chamado</label>
+        <div class="col-12 col-md-9">
+          <label class="form-label fw-bold text-primary" style="font-size:12px">Número do chamado ou link de acompanhamento</label>
           <input type="text" name="numero_chamado" class="form-control" placeholder="CHM-2026-00001" autocomplete="off" required>
         </div>
-        <div class="col-12 col-md-5">
-          <label class="form-label fw-bold text-primary" style="font-size:12px">Código de acompanhamento <span class="text-muted fw-normal">(opcional)</span></label>
-          <input type="text" name="t" class="form-control" placeholder="código do link enviado ao abrir" autocomplete="off">
-        </div>
-        <div class="col-12 col-md-2">
+        <div class="col-12 col-md-3">
           <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold">Buscar</button>
         </div>
       </form>
       <p class="text-muted mt-3 mb-0" style="font-size:12px">
-        <i class="bi bi-info-circle me-1"></i>Sem o código, você vê apenas a situação atual.
-        O código completo aparece no link de acompanhamento gerado quando o chamado é aberto.
+        <i class="bi bi-info-circle me-1"></i>Só com o <strong>número</strong> você vê a situação atual.
+        Colando o <strong>link de acompanhamento</strong> (o que aparece ao abrir o chamado) você vê tudo — descrição, histórico e avaliação.
       </p>
     </div>
   </div>
@@ -967,26 +976,23 @@ elseif ($aba === 'sup' && $subaba === 'acompanhar'):
   <!-- RASTREAR PEDIDO (sem listagem pública — P0-4) -->
   <div class="panel-card">
     <div class="panel-head">
-      <div><h2><i class="bi bi-box-seam"></i> Rastrear Pedido</h2><p>Informe o número e o código de acompanhamento</p></div>
+      <div><h2><i class="bi bi-box-seam"></i> Rastrear Pedido</h2><p>Informe o número ou cole o link de acompanhamento</p></div>
     </div>
     <div class="panel-body">
-      <form method="get" class="row g-2 align-items-end">
+      <form method="get" class="row g-2 align-items-end" data-rastrear="sup">
         <input type="hidden" name="aba" value="sup">
         <input type="hidden" name="subaba" value="acompanhar">
-        <div class="col-12 col-md-5">
-          <label class="form-label fw-bold text-primary" style="font-size:12px">Número do pedido</label>
+        <div class="col-12 col-md-9">
+          <label class="form-label fw-bold text-primary" style="font-size:12px">Número do pedido ou link de acompanhamento</label>
           <input type="text" name="numero_sup" class="form-control" placeholder="SUP-2026-00001" autocomplete="off" required>
         </div>
-        <div class="col-12 col-md-5">
-          <label class="form-label fw-bold text-primary" style="font-size:12px">Código de acompanhamento <span class="text-muted fw-normal">(opcional)</span></label>
-          <input type="text" name="t" class="form-control" placeholder="código do link do pedido" autocomplete="off">
-        </div>
-        <div class="col-12 col-md-2">
+        <div class="col-12 col-md-3">
           <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold">Buscar</button>
         </div>
       </form>
       <p class="text-muted mt-3 mb-0" style="font-size:12px">
-        <i class="bi bi-info-circle me-1"></i>Sem o código, você vê apenas a situação atual do pedido.
+        <i class="bi bi-info-circle me-1"></i>Só com o <strong>número</strong> você vê a situação atual.
+        Colando o <strong>link de acompanhamento</strong> você vê os itens e os detalhes do pedido.
       </p>
     </div>
   </div>
@@ -1038,6 +1044,32 @@ elseif ($aba === 'sup' && $subaba === 'acompanhar'):
     }
     copiar(txt).then(function () { feedback(true); }).catch(function () {
       try { window.prompt('Copie manualmente (Ctrl+C):', txt); } catch (e) { feedback(false); }
+    });
+  });
+})();
+
+// ── Rastrear: aceita número OU um link de acompanhamento colado ────
+(function () {
+  document.querySelectorAll('form[data-rastrear]').forEach(function (form) {
+    form.addEventListener('submit', function (e) {
+      var tipo = form.dataset.rastrear;
+      var campo = form.querySelector('input[name="numero_' + (tipo === 'ti' ? 'chamado' : 'sup') + '"]');
+      var v = (campo.value || '').trim();
+      if (!/[?&](numero_chamado|numero_sup)=/.test(v)) return; // é só o número → segue o fluxo normal
+      // é um link colado — extrai os parâmetros e navega direto
+      try {
+        var qs = v.slice(v.indexOf('?') + 1);
+        var p = new URLSearchParams(qs);
+        var num = p.get('numero_chamado') || p.get('numero_sup');
+        var tok = p.get('t') || '';
+        if (num) {
+          e.preventDefault();
+          var pnum = tipo === 'ti' ? 'numero_chamado' : 'numero_sup';
+          location.href = location.pathname + '?aba=' + (tipo === 'ti' ? 'ti' : 'sup') +
+            '&subaba=acompanhar&' + pnum + '=' + encodeURIComponent(num) +
+            (tok ? '&t=' + encodeURIComponent(tok) : '');
+        }
+      } catch (err) { /* link malformado → deixa submeter normal */ }
     });
   });
 })();
