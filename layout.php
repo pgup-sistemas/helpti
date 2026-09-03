@@ -116,8 +116,21 @@ body.sidebar-collapsed .nav-section .nav-sec-arrow{display:none}
 .table-hover tbody tr:hover td{background:var(--bg-hover)}
 .table{--bs-table-bg:var(--bg-surface);--bs-table-striped-bg:var(--bg-surface-alt);color:var(--tx-primary)}
 
-/* Cabeçalho fixo (sticky) — fica visível ao rolar a página, logo abaixo da topbar */
-.table-sortable thead th{position:sticky;top:60px;z-index:5}
+/* Cabeçalho fixo (sticky) — visível ao rolar a página, logo abaixo da topbar.
+   O wrapper .table-responsive do Bootstrap tem overflow-x:auto, o que o torna
+   o container de rolagem do sticky e empurrava o cabeçalho 60px para dentro da
+   tabela (sobrepondo a 1ª linha). Removendo o overflow no desktop, o sticky
+   passa a se ancorar na viewport, logo abaixo da topbar. */
+.table-responsive:has(> .table-sortable){overflow:visible}
+.table-sortable thead th{
+  position:sticky;top:60px;z-index:5;
+  background:var(--table-th-bg); /* opaco: a 1ª linha não vaza por baixo */
+}
+@media(max-width:992px){
+  /* telas estreitas: rolagem horizontal volta a valer; sticky vertical sai */
+  .table-responsive:has(> .table-sortable){overflow-x:auto}
+  .table-sortable thead th{position:static}
+}
 
 /* Botão de copiar (IP, número de série etc.) */
 .btn-copy{background:none;border:none;padding:0 2px;color:var(--tx-faint);cursor:pointer;font-size:11px;vertical-align:middle;transition:.15s}
