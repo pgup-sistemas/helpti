@@ -32,62 +32,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $action = $_POST['action'] ?? '';
 
     if ($action === 'atualizar') {
-        $resp      = $_POST['responsavel_id'] ?: null;
-        $nivel     = $_POST['nivel'];
-        $status    = $_POST['status'];
-        $resolucao = trim($_POST['resolucao'] ?? '');
+        $resp     = ($_POST['responsavel_id'] ?? '') !== '' ? (int) $_POST['responsavel_id'] : null;
+        $nomeResp = $resp ? (array_column($tecnicos, 'nome', 'id')[$resp] ?? '—') : null;
 
-        $statusAnterior = $chamado['status'];
-        $respAnterior   = $chamado['responsavel_id'];
+        try {
+            $r = ChamadoWorkflow::atualizar($pdo, $chamado, [
+                'status'         => $_POST['status'] ?? $chamado['status'],
+                'responsavel_id' => $resp,
+                'nivel'          => $_POST['nivel'] ?? $chamado['nivel'],
+                'resolucao'      => $_POST['resolucao'] ?? '',
+            ], $u['id'] ?? null, $nomeResp);
 
-        $fechadoEm = ($status === 'Concluído' && $statusAnterior !== 'Concluído') ? 'NOW()' : 'fechado_em';
-        $pdo->prepare("UPDATE chamados SET responsavel_id=?,nivel=?,status=?,resolucao=?,
-                       fechado_em = IF(status != 'Concluído' AND ? = 'Concluído', NOW(), fechado_em)
-                       WHERE id=?")
-            ->execute([$resp,$nivel,$status,$resolucao,$status,$id]);
+            auditLog('chamado_atualizado', 'chamados', $id,
+                "Status: {$r['status']}" . ($r['reaberto'] ? ' (reaberto)' : ''));
 
-        // Log histórico
-        $nomeResp = $resp ? (array_column($tecnicos,'nome','id')[$resp] ?? '—') : '—';
-        $acao = "Status: {$status} | Responsável: {$nomeResp} | Nível: {$nivel}";
-        $pdo->prepare("INSERT INTO historico (chamado_id,usuario_id,acao) VALUES (?,?,?)")
-            ->execute([$id,$u['id'],$acao]);
-
-        auditLog('chamado_atualizado', 'chamados', $id, $acao);
-
-        // Notificações
-        $dadosChamado = ['id'=>$id,'numero'=>$chamado['numero'],'setor'=>$chamado['setor'],'descricao'=>$chamado['descricao'],'solicitante'=>$chamado['solicitante'],'avaliacao_token'=>$chamado['avaliacao_token'] ?? null];
-
-        // Novo responsável atribuído
-        if ($resp && $resp != $respAnterior) {
-            $st = $pdo->prepare("SELECT email FROM usuarios WHERE id=?");
-            $st->execute([$resp]);
-            $emailTec = $st->fetchColumn();
-            if ($emailTec) notificarChamado('atribuido', $dadosChamado, $emailTec);
-        }
-
-        // Chamado concluído
-        if ($status === 'Concluído' && $statusAnterior !== 'Concluído') {
-            // Notifica responsável atual (resumo de conclusão)
-            if ($resp) {
+            $dadosChamado = [
+                'id' => $id, 'numero' => $chamado['numero'], 'setor' => $chamado['setor'],
+                'descricao' => $chamado['descricao'], 'solicitante' => $chamado['solicitante'],
+                'avaliacao_token' => $chamado['avaliacao_token'] ?? null,
+            ];
+            if ($r['responsavel_novo']) {
+                $st = $pdo->prepare("SELECT email FROM usuarios WHERE id=?");
+                $st->execute([$r['responsavel_novo']]);
+                if ($email = $st->fetchColumn()) notificarChamado('atribuido', $dadosChamado, $email);
+            }
+            if ($r['concluido'] && $resp) {
                 $st = $pdo->prepare("SELECT email FROM usuarios WHERE id=?");
                 $st->execute([$resp]);
-                $emailTec = $st->fetchColumn();
-                if ($emailTec) notificarChamado('concluido', $dadosChamado, $emailTec);
+                if ($email = $st->fetchColumn()) notificarChamado('concluido', $dadosChamado, $email);
             }
+
+            sync_inventario_status_chamado($id, $r['status']);
+            flash('Chamado atualizado com sucesso.');
+        } catch (WorkflowException $e) {
+            flash($e->getMessage(), 'danger');
         }
-
-        // Sincroniza status do equipamento vinculado
-        sync_inventario_status_chamado($id, $status);
-
-        flash('Chamado atualizado com sucesso.');
         header("Location: chamado.php?id=$id"); exit;
     }
 
     if ($action === 'comentar') {
-        $obs = trim($_POST['observacao'] ?? '');
-        if ($obs) {
-            $pdo->prepare("INSERT INTO historico (chamado_id,usuario_id,acao) VALUES (?,?,?)")
-                ->execute([$id,$u['id'],"💬 ".$obs]);
+        if (ChamadoWorkflow::comentar($pdo, $id, $u['id'] ?? null, $_POST['observacao'] ?? '')) {
             flash('Observação adicionada.');
         }
         header("Location: chamado.php?id=$id"); exit;
@@ -218,10 +202,11 @@ layoutHeader('Chamado '.$chamado['numero'], 'chamados');
             <div class="col-sm-4">
               <label class="form-label fw-semibold" style="font-size:12px">Status</label>
               <select name="status" class="form-select form-select-sm">
-                <?php foreach(['Aberto','Em Andamento','Pendente','Concluído'] as $s): ?>
-                  <option <?= $chamado['status']===$s?'selected':'' ?>><?= $s ?></option>
+                <?php foreach (ChamadoWorkflow::proximos($chamado['status']) as $s): ?>
+                  <option <?= $chamado['status']===$s?'selected':'' ?>><?= h($s) ?></option>
                 <?php endforeach; ?>
               </select>
+              <div class="form-text" style="font-size:11px">Só transições válidas do fluxo são exibidas.</div>
             </div>
             <div class="col-12">
               <div class="d-flex justify-content-between align-items-center mb-1">

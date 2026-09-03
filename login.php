@@ -23,15 +23,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $u = $st->fetch();
 
         if ($u && password_verify($senha, $u['senha'])) {
-            // [SECURITY] Previne session fixation
-            session_regenerate_id(true);
             clearFailedLogins($ip);
-            $_SESSION['usuario'] = [
-                'id'     => $u['id'],
-                'nome'   => $u['nome'],
-                'email'  => $u['email'],
-                'perfil' => $u['perfil'],
-            ];
+            Auth::login($u);              // regenera sessão + timestamps de expiração
             header('Location: dashboard.php');
             exit;
         }
