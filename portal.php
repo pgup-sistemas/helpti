@@ -375,12 +375,19 @@ a{color:var(--brand)}
 .copiavel.copiado{background:#16a34a!important;border-color:#16a34a!important;color:#fff!important}
 button.num{font-family:inherit}
 /* lista "abertos neste navegador" */
-.meu-item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:.7rem 1.1rem;border-bottom:1px solid #e5e9f2;text-decoration:none;color:inherit;transition:.12s}
+/* "Abertos neste navegador" — seção leve, sem card pesado */
+.meus-itens{margin-top:1.1rem}
+.meus-itens-label{font-size:11px;font-weight:700;color:#6c757d;text-transform:uppercase;letter-spacing:.05em;margin:0 0 .5rem 2px}
+.meus-itens-lista{background:#fff;border:1px solid #e5e9f2;border-radius:12px;overflow:hidden}
+.meu-item{display:flex;align-items:center;gap:6px;border-bottom:1px solid #f1f5f9;transition:.12s}
 .meu-item:last-child{border-bottom:none}
 .meu-item:hover{background:#f8fbff}
-.meu-item .mi-num{font-weight:700;font-size:13px;color:var(--brand);font-family:ui-monospace,monospace}
-.meu-item .mi-data{font-size:11px;color:#9ca3af}
-.meu-item .mi-esquecer{background:none;border:none;color:#cbd5e1;font-size:14px;cursor:pointer;padding:2px 6px}
+.meu-item .mi-info{flex:1;min-width:0;display:flex;align-items:center;gap:10px;padding:.6rem .3rem .6rem .9rem;text-decoration:none;color:inherit}
+.meu-item .mi-num{font-weight:700;font-size:13px;color:var(--brand);font-family:ui-monospace,SFMono-Regular,monospace}
+.meu-item .mi-data{font-size:11px;color:#9ca3af;white-space:nowrap}
+.meu-item .mi-go{margin-left:auto;color:#cbd5e1;font-size:12px}
+.meu-item:hover .mi-go{color:var(--brand-dark)}
+.meu-item .mi-esquecer{background:none;border:none;color:#cbd5e1;font-size:12px;cursor:pointer;padding:6px 10px 6px 4px;line-height:1;flex-shrink:0}
 .meu-item .mi-esquecer:hover{color:#ef4444}
 .btn-outline-brand{border:1.5px solid var(--brand);color:var(--brand);background:transparent;border-radius:8px;padding:.5rem 1.25rem;font-size:13px;font-weight:600;text-decoration:none;cursor:pointer;display:inline-block;transition:.15s}
 .btn-outline-brand:hover{background:var(--brand);color:#fff}
@@ -737,11 +744,9 @@ elseif ($aba === 'ti' && $subaba === 'acompanhar'):
 <?php endif; ?>
 
 <!-- Chamados abertos neste navegador (localStorage) — aparece em ambas as visões -->
-<div class="panel-card" id="meusItensTi" style="display:none">
-  <div class="panel-head">
-    <div><h2><i class="bi bi-clock-history"></i> Abertos neste navegador</h2><p>Acesso rápido — ficam salvos só neste computador</p></div>
-  </div>
-  <div class="panel-body p-0"><div id="meusItensTiLista"></div></div>
+<div class="meus-itens" id="meusItensTi" style="display:none">
+  <div class="meus-itens-label"><i class="bi bi-clock-history me-1"></i>Abertos neste navegador</div>
+  <div class="meus-itens-lista" id="meusItensTiLista"></div>
 </div>
 
 <?php
@@ -1003,11 +1008,9 @@ elseif ($aba === 'sup' && $subaba === 'acompanhar'):
 <?php endif; ?>
 
 <!-- Pedidos abertos neste navegador (localStorage) — aparece em ambas as visões -->
-<div class="panel-card" id="meusItensSup" style="display:none">
-  <div class="panel-head">
-    <div><h2><i class="bi bi-clock-history"></i> Abertos neste navegador</h2><p>Acesso rápido — ficam salvos só neste computador</p></div>
-  </div>
-  <div class="panel-body p-0"><div id="meusItensSupLista"></div></div>
+<div class="meus-itens" id="meusItensSup" style="display:none">
+  <div class="meus-itens-label"><i class="bi bi-clock-history me-1"></i>Abertos neste navegador</div>
+  <div class="meus-itens-lista" id="meusItensSupLista"></div>
 </div>
 
 <?php endif; ?>
@@ -1102,13 +1105,13 @@ elseif ($aba === 'sup' && $subaba === 'acompanhar'):
     if (!itens.length) { wrap.style.display = 'none'; return; }
     cont.innerHTML = itens.map(function (i) {
       var url = linkAcompanhamento(tipo, i.numero, i.token, false);
-      return '<div class="meu-item-wrap" style="display:flex">' +
-        '<a class="meu-item flex-grow-1" href="' + url + '">' +
-          '<span><span class="mi-num">' + esc(i.numero) + '</span>' +
-          '<div class="mi-data">Aberto em ' + fmtData(i.ts) + '</div></span>' +
-          '<i class="bi bi-chevron-right text-muted"></i>' +
+      return '<div class="meu-item">' +
+        '<a class="mi-info" href="' + url + '">' +
+          '<span class="mi-num">' + esc(i.numero) + '</span>' +
+          '<span class="mi-data">' + fmtData(i.ts) + '</span>' +
+          '<i class="bi bi-chevron-right mi-go"></i>' +
         '</a>' +
-        '<button class="mi-esquecer" title="Remover desta lista" data-esquecer="' + esc(i.numero) + '"><i class="bi bi-x-lg"></i></button>' +
+        '<button class="mi-esquecer" title="Remover da lista" data-esquecer="' + esc(i.numero) + '"><i class="bi bi-x-lg"></i></button>' +
       '</div>';
     }).join('');
     wrap.style.display = '';
