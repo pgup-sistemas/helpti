@@ -630,18 +630,29 @@ elseif ($aba === 'ti' && $subaba === 'acompanhar'):
       </div>
 
       <?php if (!$acesso_completo): ?>
-        <!-- Sem token de acompanhamento: apenas status, sem dados pessoais (P0-4) -->
-        <div class="row g-3 mb-2">
+        <!-- Sem token: status + linha do tempo resumida, sem dados pessoais (P0-4) -->
+        <div class="row g-3 mb-3">
           <div class="col-6"><div class="text-muted small">Setor</div><div class="fw-semibold"><?= h($chamado_detalhe['setor']) ?></div></div>
           <div class="col-6"><div class="text-muted small">Aberto em</div><div><?= date('d/m/Y H:i',strtotime($chamado_detalhe['criado_em'])) ?></div></div>
           <div class="col-6"><div class="text-muted small">Situação</div><div class="fw-semibold"><?= h($chamado_detalhe['status']) ?></div></div>
           <div class="col-6"><div class="text-muted small">Responsável</div><div><?= $chamado_detalhe['responsavel_id'] ? 'Em atendimento' : 'Aguardando atribuição' ?></div></div>
         </div>
-        <div class="alert alert-light border mt-3" style="font-size:12.5px">
-          <i class="bi bi-info-circle me-1"></i>Acima está a <strong>situação atual</strong> do seu chamado.
-          Para ver a descrição completa, o histórico e avaliar o atendimento, abra o
-          <strong>link de acompanhamento</strong> que você recebeu ao registrar o chamado —
-          ou escolha o chamado na lista <strong>“Abertos neste navegador”</strong> logo abaixo (se você o abriu neste computador).
+
+        <h6 class="fw-bold border-bottom pb-2 mb-2">Andamento</h6>
+        <div class="timeline">
+          <div class="tl-item"><div class="tl-dot"></div>
+            <div class="tl-time"><?= date('d/m/Y H:i',strtotime($chamado_detalhe['criado_em'])) ?></div>
+            <div class="tl-text">Chamado registrado</div></div>
+          <?php if ($chamado_detalhe['responsavel_id']): ?>
+          <div class="tl-item"><div class="tl-dot"></div>
+            <div class="tl-time">—</div>
+            <div class="tl-text">Atendimento iniciado pela equipe de TI</div></div>
+          <?php endif; ?>
+          <?php if ($chamado_detalhe['status']==='Concluído'): ?>
+          <div class="tl-item"><div class="tl-dot" style="background:#16a34a;box-shadow:0 0 0 2px #16a34a"></div>
+            <div class="tl-time"><?= !empty($chamado_detalhe['fechado_em']) ? date('d/m/Y H:i',strtotime($chamado_detalhe['fechado_em'])) : '—' ?></div>
+            <div class="tl-text">Chamado concluído</div></div>
+          <?php endif; ?>
         </div>
       <?php else: ?>
       <div class="row g-4">
@@ -670,34 +681,6 @@ elseif ($aba === 'ti' && $subaba === 'acompanhar'):
             <h6 class="fw-bold border-bottom pb-2 mb-2 mt-3 text-success"><i class="bi bi-check-circle-fill me-1"></i>Resolução</h6>
             <p class="p-3 rounded border border-success" style="background:#f0fdf4;font-size:13.5px;white-space:pre-wrap"><?= h($chamado_detalhe['resolucao']) ?></p>
           <?php endif; ?>
-
-          <?php if ($chamado_detalhe['status']==='Concluído'):
-            $av=$pdo->prepare("SELECT * FROM avaliacoes WHERE chamado_id=?");
-            $av->execute([$chamado_detalhe['id']]); $avaliacao=$av->fetch(); ?>
-            <div class="mt-3 p-3 rounded border" style="background:#fffbeb">
-              <?php if ($avaliacao): ?>
-                <div class="fw-semibold mb-1" style="font-size:13px"><i class="bi bi-star-fill text-warning me-1"></i>Sua avaliação</div>
-                <div style="font-size:20px;letter-spacing:2px"><?php for($i=1;$i<=5;$i++) echo $i<=$avaliacao['nota']?'⭐':'☆'; ?></div>
-                <?php if($avaliacao['comentario']): ?><p class="text-muted mt-1 mb-0" style="font-size:13px">"<?= h($avaliacao['comentario']) ?>"</p><?php endif; ?>
-              <?php else: ?>
-                <div class="fw-semibold mb-2" style="font-size:13px"><i class="bi bi-star me-1 text-warning"></i>Avalie o atendimento</div>
-                <form method="post">
-                  <?= csrfField() ?>
-                  <input type="hidden" name="avaliar_token" value="<?= h($chamado_detalhe['avaliacao_token'] ?? '') ?>">
-                  <input type="hidden" name="aba" value="ti">
-                  <input type="hidden" name="subaba" value="acompanhar">
-                  <input type="hidden" name="numero_chamado" value="<?= h($chamado_detalhe['numero']) ?>">
-                  <input type="hidden" name="t" value="<?= h($token_chamado) ?>">
-                  <div class="d-flex gap-2 mb-2" id="estrelas">
-                    <?php for($i=1;$i<=5;$i++): ?><label title="<?= $i ?> estrela(s)" style="cursor:pointer;font-size:24px" onclick="setNota(<?= $i ?>)">☆</label><?php endfor; ?>
-                  </div>
-                  <input type="hidden" name="nota" id="nota" value="">
-                  <textarea name="comentario" maxlength="2000" class="form-control form-control-sm mb-2" rows="2" placeholder="Comentário opcional..."></textarea>
-                  <button type="submit" class="btn btn-warning btn-sm fw-semibold" id="btnAvaliar" disabled>Enviar avaliação</button>
-                </form>
-              <?php endif; ?>
-            </div>
-          <?php endif; ?>
         </div>
         <div class="col-md-5">
           <h6 class="fw-bold border-bottom pb-2 mb-3">Atualizações</h6>
@@ -716,6 +699,44 @@ elseif ($aba === 'ti' && $subaba === 'acompanhar'):
           <?php endif; ?>
         </div>
       </div>
+      <?php endif; ?>
+
+      <?php
+      // Avaliação — disponível sempre que o chamado está Concluído (não expõe PII).
+      if ($chamado_detalhe['status']==='Concluído'):
+        $av=$pdo->prepare("SELECT nota, comentario FROM avaliacoes WHERE chamado_id=?");
+        $av->execute([$chamado_detalhe['id']]); $avaliacao=$av->fetch(); ?>
+        <div class="mt-3 p-3 rounded border" style="background:#fffbeb">
+          <?php if ($avaliacao): ?>
+            <div class="fw-semibold mb-1" style="font-size:13px"><i class="bi bi-star-fill text-warning me-1"></i>Sua avaliação</div>
+            <div style="font-size:20px;letter-spacing:2px"><?php for($i=1;$i<=5;$i++) echo $i<=$avaliacao['nota']?'⭐':'☆'; ?></div>
+            <?php if($avaliacao['comentario']): ?><p class="text-muted mt-1 mb-0" style="font-size:13px">"<?= h($avaliacao['comentario']) ?>"</p><?php endif; ?>
+          <?php else: ?>
+            <div class="fw-semibold mb-2" style="font-size:13px"><i class="bi bi-star me-1 text-warning"></i>Avalie o atendimento</div>
+            <form method="post">
+              <?= csrfField() ?>
+              <input type="hidden" name="avaliar_token" value="<?= h($chamado_detalhe['avaliacao_token'] ?? '') ?>">
+              <input type="hidden" name="aba" value="ti">
+              <input type="hidden" name="subaba" value="acompanhar">
+              <input type="hidden" name="numero_chamado" value="<?= h($chamado_detalhe['numero']) ?>">
+              <input type="hidden" name="t" value="<?= h($token_chamado) ?>">
+              <div class="d-flex gap-2 mb-2" id="estrelas">
+                <?php for($i=1;$i<=5;$i++): ?><label title="<?= $i ?> estrela(s)" style="cursor:pointer;font-size:24px" onclick="setNota(<?= $i ?>)">☆</label><?php endfor; ?>
+              </div>
+              <input type="hidden" name="nota" id="nota" value="">
+              <textarea name="comentario" maxlength="2000" class="form-control form-control-sm mb-2" rows="2" placeholder="Comentário opcional..."></textarea>
+              <button type="submit" class="btn btn-warning btn-sm fw-semibold" id="btnAvaliar" disabled>Enviar avaliação</button>
+            </form>
+          <?php endif; ?>
+        </div>
+      <?php endif; ?>
+
+      <?php if (!$acesso_completo): ?>
+        <div class="alert alert-light border mt-3" style="font-size:12.5px">
+          <i class="bi bi-info-circle me-1"></i>Para ver a <strong>descrição completa</strong> e o histórico detalhado do atendimento,
+          abra o <strong>link de acompanhamento</strong> que você recebeu ao registrar o chamado —
+          ou escolha-o na lista <strong>“Abertos neste navegador”</strong> logo abaixo (se você o abriu neste computador).
+        </div>
       <?php endif; ?>
     </div>
   </div>
