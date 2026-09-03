@@ -13,8 +13,8 @@ if (!rateLimit('status_chamado_' . clientIp(), 60, 600)) {
 }
 
 $numero = strtoupper(trim($_GET['numero'] ?? ''));
-// Formato real: CHM-2026-00001
-if (!preg_match('/^CHM-\d{4}-\d{5}$/', $numero)) {
+// Aceita o formato atual (CHM-2026-00001) e o legado (CHM-XXXXXX)
+if (!preg_match('/^CHM-(\d{4}-\d{5}|[A-Z0-9]{6})$/', $numero)) {
     http_response_code(400);
     echo json_encode(['error' => 'invalid']);
     exit;

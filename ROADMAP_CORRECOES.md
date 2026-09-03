@@ -43,18 +43,18 @@ Status: ⬜ pendente · 🔧 em andamento · ✅ feito · ⏭️ requer ação n
 | P2-5 | SLA relógio-de-parede → horário comercial | `db.php`, `cron_sla.php` | ✅ |
 | P2-6 | Máquina de estados de chamado (bloqueante) | `src/ChamadoWorkflow.php`, `chamado.php` | ✅ |
 | P2-7 | Extrair camada `src/` (Auth, Session, Sla, Estoque, Mailer, Seq, Log, RateLimiter) | `src/`, `db.php` (fachada) | ✅ |
-| P2-8 | `declare(strict_types=1)` — todo `src/` já é strict; procedural migra aos poucos | `src/*` | 🔧 parcial |
+| P2-8 | `declare(strict_types=1)` | `src/*` (todos), `gemini.php`, `estoque_helpers.php`, `impressoras_helpers.php`, `sync_inventario.php` | ✅ (controllers de página seguem non-strict de propósito) |
 | P2-9 | Health check + heartbeat de cron | `health.php` (novo), migration | ✅ |
 
 ## P3 — Futuro (condicionado a crescimento)
 
 | # | Achado | Status |
 |---|---|---|
-| P3-1 | Poda de `impressoras_snapshot` / `audit_log` | ✅ (job criado) |
-| P3-2 | Tabela materializada de último snapshot | ⬜ |
-| P3-3 | FULLTEXT search | ⬜ |
-| P3-4 | Fila de e-mail com dead-letter / backoff | ✅ parcial (status + tentativas) |
-| P3-5 | `chamados.setor` → FK | ⬜ (validação de aplicação já cobre) |
+| P3-1 | Poda de `impressoras_snapshot` / `audit_log` | ✅ (`bin/cron_poda.php`) |
+| P3-2 | Tabela materializada de último snapshot | ✅ (`impressoras_ultimo_snapshot`, migration 0007) |
+| P3-3 | FULLTEXT search | ✅ (3 índices, `busca_global.php` híbrido FULLTEXT/LIKE) |
+| P3-4 | Fila de e-mail com dead-letter / backoff | ✅ parcial (status `falhou` + `tentativas` + recuperação de worker) |
+| P3-5 | `chamados.setor` → FK | ✅ (`fk_chamado_setor`, ON UPDATE CASCADE, migration 0008) |
 
 ---
 

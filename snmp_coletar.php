@@ -143,6 +143,22 @@ foreach ($impressoras as $imp) {
         json_encode($dados['raw']),
     ]);
 
+    // Espelho materializado do último snapshot (P3-2)
+    $pdo->prepare("
+        INSERT INTO impressoras_ultimo_snapshot
+            (impressora_id, coletado_em, paginas_total,
+             toner_preto_pct, toner_ciano_pct, toner_magenta_pct, toner_amarelo_pct)
+        VALUES (?, NOW(), ?, ?, ?, ?, ?)
+        ON DUPLICATE KEY UPDATE
+            coletado_em = NOW(), paginas_total = VALUES(paginas_total),
+            toner_preto_pct = VALUES(toner_preto_pct), toner_ciano_pct = VALUES(toner_ciano_pct),
+            toner_magenta_pct = VALUES(toner_magenta_pct), toner_amarelo_pct = VALUES(toner_amarelo_pct)
+    ")->execute([
+        $imp['id'], $dados['paginas_total'],
+        $dados['toner_preto_pct'], $dados['toner_ciano_pct'],
+        $dados['toner_magenta_pct'], $dados['toner_amarelo_pct'],
+    ]);
+
     // Impressora respondeu — limpa flag de offline
     if ($imp['alerta_offline_em']) {
         $pdo->prepare("UPDATE impressoras SET alerta_offline_em = NULL WHERE id = ?")

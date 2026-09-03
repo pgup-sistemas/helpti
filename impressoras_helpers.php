@@ -1,9 +1,15 @@
 <?php
+declare(strict_types=1);
 /**
  * HelpTI — Funções compartilhadas entre impressoras.php e relatorio_impressoras.php
  * Evita duplicação e mantém as faixas de toner/status consistentes nas duas telas.
  */
 if (!defined('HELPTI_BOOT')) { http_response_code(403); exit('Acesso negado.'); }
+
+/** Normaliza valor numérico vindo do banco (string|int|null) para ?int. */
+function _num(int|string|null $v): ?int {
+    return ($v === null || $v === '') ? null : (int) $v;
+}
 
 // ── Badge de status da impressora (Ativa / Em Manutenção / Inativa) ──
 function badgeStatusImpressora(string $s): string {
@@ -17,7 +23,8 @@ function badgeStatusImpressora(string $s): string {
 }
 
 // ── Badge de nível de toner. $compact reduz o tamanho para uso em tabelas densas ──
-function tonerBadge(?int $pct, string $label = '', bool $compact = false): string {
+function tonerBadge(int|string|null $pct, string $label = '', bool $compact = false): string {
+    $pct = _num($pct);
     if ($pct === null) return $compact ? '' : '<span class="text-muted">—</span>';
     $cls = $pct <= 15 ? 'bg-danger' : ($pct <= 30 ? 'bg-warning text-dark' : 'bg-success');
     $style = $compact ? " style='font-size:10px'" : '';
@@ -26,7 +33,8 @@ function tonerBadge(?int $pct, string $label = '', bool $compact = false): strin
 }
 
 // ── Badge de variação percentual mês a mês ──
-function variacaoBadge(?int $atual, ?int $ant): string {
+function variacaoBadge(int|string|null $atual, int|string|null $ant): string {
+    $atual = _num($atual); $ant = _num($ant);
     if ($atual === null || $ant === null || $ant === 0) return '<span class="text-muted">—</span>';
     $delta = $atual - $ant;
     $pct   = round(($delta / $ant) * 100);
@@ -36,31 +44,23 @@ function variacaoBadge(?int $atual, ?int $ant): string {
 }
 
 /**
- * Busca o snapshot SNMP mais recente de cada impressora informada.
- * Retorna array indexado por impressora_id.
+ * Último snapshot SNMP de cada impressora, indexado por impressora_id.
+ * Lê da tabela materializada impressoras_ultimo_snapshot (P3-2).
  */
 function snmp_ultimo_snapshot(PDO $pdo, array $impressora_ids): array {
     if (!$impressora_ids) return [];
-    $tem_snap = (bool)$pdo->query(
-        "SELECT COUNT(*) FROM information_schema.tables
-         WHERE table_schema = DATABASE() AND table_name = 'impressoras_snapshot'"
-    )->fetchColumn();
-    if (!$tem_snap) return [];
-
     $ids = implode(',', array_map('intval', $impressora_ids));
-    $snaps = $pdo->query("
-        SELECT s.impressora_id,
-               s.toner_preto_pct, s.toner_ciano_pct,
-               s.toner_magenta_pct, s.toner_amarelo_pct,
-               s.paginas_total, s.coletado_em
-        FROM impressoras_snapshot s
-        INNER JOIN (
-            SELECT impressora_id, MAX(coletado_em) AS max_dt
-            FROM impressoras_snapshot
+
+    try {
+        $snaps = $pdo->query("
+            SELECT impressora_id, toner_preto_pct, toner_ciano_pct,
+                   toner_magenta_pct, toner_amarelo_pct, paginas_total, coletado_em
+            FROM impressoras_ultimo_snapshot
             WHERE impressora_id IN ($ids)
-            GROUP BY impressora_id
-        ) m ON m.impressora_id = s.impressora_id AND m.max_dt = s.coletado_em
-    ")->fetchAll();
+        ")->fetchAll();
+    } catch (Throwable) {
+        return []; // tabela ainda não migrada
+    }
 
     $map = [];
     foreach ($snaps as $sn) $map[$sn['impressora_id']] = $sn;

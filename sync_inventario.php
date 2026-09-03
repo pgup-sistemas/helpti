@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 if (!defined('HELPTI_BOOT')) { http_response_code(403); exit('Acesso negado.'); }
 /**
  * HelpTI — Sincronização do Inventário

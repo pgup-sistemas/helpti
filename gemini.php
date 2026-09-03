@@ -1,4 +1,5 @@
 <?php
+declare(strict_types=1);
 // ============================================================
 // gemini.php — Wrapper server-side para Google Gemini
 // Nunca expor GEMINI_API_KEY ao cliente — todas as chamadas

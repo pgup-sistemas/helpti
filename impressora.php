@@ -18,11 +18,7 @@ if (!$imp) {
 }
 
 // Snapshots SNMP — últimos 12 meses
-$tabela_snap_existe = $pdo->query(
-    "SELECT COUNT(*) FROM information_schema.tables
-     WHERE table_schema = DATABASE() AND table_name = 'impressoras_snapshot'"
-)->fetchColumn();
-
+$tabela_snap_existe = true; // schema garantido pelas migrations
 $snapshots_mensais = [];
 $ultimo_snap = null;
 if ($tabela_snap_existe) {
@@ -47,9 +43,9 @@ if ($tabela_snap_existe) {
     $snapshots_mensais = $st_snap->fetchAll();
 
     $st_ultimo = $pdo->prepare("
-        SELECT * FROM impressoras_snapshot
-        WHERE impressora_id = ?
-        ORDER BY coletado_em DESC LIMIT 1
+        SELECT coletado_em, paginas_total,
+               toner_preto_pct, toner_ciano_pct, toner_magenta_pct, toner_amarelo_pct
+        FROM impressoras_ultimo_snapshot WHERE impressora_id = ?
     ");
     $st_ultimo->execute([$id]);
     $ultimo_snap = $st_ultimo->fetch();
