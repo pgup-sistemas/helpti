@@ -637,12 +637,15 @@ document.getElementById('btn-refresh-tecnicos').addEventListener('click', carreg
       if (!d.ok || !d.hosts.length) { box.innerHTML = '<div class="text-muted">Nenhum host com MAC conhecido. Rode o Scanner de Rede primeiro.</div>'; return; }
       const grupos = {};
       d.hosts.forEach(h => { (grupos[h.setor] = grupos[h.setor] || []).push(h); });
-      let html = '<div class="mb-2"><button type="button" class="btn btn-outline-primary btn-xs" id="pw-add-sel">Adicionar selecionados aos alvos</button></div>';
+      let html = '<div class="text-muted mb-2" style="font-size:11px">Marque as estações — os IPs entram/saem da lista de alvos automaticamente.</div>';
       Object.keys(grupos).sort().forEach(setor => {
-        html += `<div class="fw-semibold mt-2" style="font-size:11px;color:#6b7280">${esc(setor)}</div>`;
+        html += `<div class="d-flex align-items-center gap-2 mt-2">
+          <span class="fw-semibold" style="font-size:11px;color:#6b7280">${esc(setor)}</span>
+          <button type="button" class="btn btn-outline-secondary btn-xs pw-setor-all" data-setor="${esc(setor)}" style="font-size:10px;padding:0 5px">todos</button>
+        </div>`;
         grupos[setor].forEach(h => {
           html += `<label class="d-flex align-items-center gap-2 py-1" style="cursor:pointer">
-            <input type="checkbox" class="pw-host" value="${esc(h.ip)}" data-mac="${esc(h.mac)}">
+            <input type="checkbox" class="pw-host" value="${esc(h.ip)}" data-setor="${esc(setor)}">
             <span style="font-family:monospace">${esc(h.ip)}</span>
             <span class="text-muted">${esc(h.hostname || '')}</span>
             ${h.online ? '<span class="badge bg-success" style="font-size:9px">on</span>' : '<span class="badge bg-secondary" style="font-size:9px">off</span>'}
@@ -650,16 +653,33 @@ document.getElementById('btn-refresh-tecnicos').addEventListener('click', carreg
         });
       });
       box.innerHTML = html;
-      document.getElementById('pw-add-sel').addEventListener('click', () => {
-        const sel = [...box.querySelectorAll('.pw-host:checked')];
-        if (!sel.length) return;
-        const usarMac = acao.value === 'ligar';
-        const linhas = sel.map(c => usarMac ? (c.dataset.mac || c.value) : c.value);
-        const atual = alvos.value.trim();
-        alvos.value = (atual ? atual + '\n' : '') + linhas.join('\n');
+
+      box.addEventListener('change', e => {
+        if (e.target.classList.contains('pw-host')) toggleAlvo(e.target.value, e.target.checked);
       });
+      box.querySelectorAll('.pw-setor-all').forEach(b => b.addEventListener('click', () => {
+        const cks = [...box.querySelectorAll(`.pw-host[data-setor="${CSS.escape(b.dataset.setor)}"]`)];
+        const marcar = cks.some(c => !c.checked);
+        cks.forEach(c => { if (c.checked !== marcar) { c.checked = marcar; toggleAlvo(c.value, marcar); } });
+      }));
+      sincronizarChecks();
     });
   }
+
+  // Mantém a textarea e os checkboxes em sincronia.
+  function linhasAtuais() {
+    return alvos.value.split(/[\r\n]+/).map(s => s.trim()).filter(Boolean);
+  }
+  function toggleAlvo(ip, incluir) {
+    const set = new Set(linhasAtuais());
+    incluir ? set.add(ip) : set.delete(ip);
+    alvos.value = [...set].join('\n');
+  }
+  function sincronizarChecks() {
+    const set = new Set(linhasAtuais());
+    box.querySelectorAll('.pw-host').forEach(c => { c.checked = set.has(c.value); });
+  }
+  alvos.addEventListener('input', () => { if (hostsCarregados) sincronizarChecks(); });
 
   btn.addEventListener('click', function() {
     const lista = alvos.value.split(/[\r\n]+/).map(s=>s.trim()).filter(Boolean);
