@@ -369,6 +369,19 @@ a{color:var(--brand)}
 .success-box h3{font-size:17px;font-weight:700;margin:.6rem 0 .3rem}
 .success-box .num{display:inline-block;background:#f0fdf4;border:1.5px solid #bbf7d0;color:#166534;font-size:20px;font-weight:800;border-radius:10px;padding:.45rem 1.25rem;letter-spacing:.05em;margin:.6rem 0}
 .success-box p{font-size:13px;color:#6b7280}
+/* clique-para-copiar */
+.copiavel{cursor:pointer;transition:.15s}
+.copiavel:hover{filter:brightness(.97)}
+.copiavel.copiado{background:#16a34a!important;border-color:#16a34a!important;color:#fff!important}
+button.num{font-family:inherit}
+/* lista "abertos neste navegador" */
+.meu-item{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:.7rem 1.1rem;border-bottom:1px solid #e5e9f2;text-decoration:none;color:inherit;transition:.12s}
+.meu-item:last-child{border-bottom:none}
+.meu-item:hover{background:#f8fbff}
+.meu-item .mi-num{font-weight:700;font-size:13px;color:var(--brand);font-family:ui-monospace,monospace}
+.meu-item .mi-data{font-size:11px;color:#9ca3af}
+.meu-item .mi-esquecer{background:none;border:none;color:#cbd5e1;font-size:14px;cursor:pointer;padding:2px 6px}
+.meu-item .mi-esquecer:hover{color:#ef4444}
 .btn-outline-brand{border:1.5px solid var(--brand);color:var(--brand);background:transparent;border-radius:8px;padding:.5rem 1.25rem;font-size:13px;font-weight:600;text-decoration:none;cursor:pointer;display:inline-block;transition:.15s}
 .btn-outline-brand:hover{background:var(--brand);color:#fff}
 
@@ -473,21 +486,35 @@ if ($aba === 'ti' && $subaba === 'abrir'):
 ?>
 
 <div class="form-card">
-  <?php if ($chamado_sucesso): ?>
-    <div class="success-box">
+  <?php if ($chamado_sucesso):
+    $ac_link = APP_URL . '/portal.php?aba=ti&subaba=acompanhar&numero_chamado=' . urlencode($chamado_sucesso) . '&t=' . urlencode($chamado_sucesso_token);
+  ?>
+    <div class="success-box"
+         data-registrar="ti"
+         data-numero="<?= h($chamado_sucesso) ?>"
+         data-token="<?= h($chamado_sucesso_token) ?>">
       <div class="chk"><i class="bi bi-check-circle-fill"></i></div>
       <h3>Chamado aberto com sucesso!</h3>
-      <p>Anote o número para acompanhar depois:</p>
-      <div class="num"><?= h($chamado_sucesso) ?></div>
+      <p style="font-size:12px">Toque para copiar:</p>
+      <button type="button" class="num copiavel" data-copy="<?= h($chamado_sucesso) ?>" title="Copiar número">
+        <?= h($chamado_sucesso) ?> <i class="bi bi-clipboard ms-1" style="font-size:13px;opacity:.6"></i>
+      </button>
       <?php if ($chamado_sucesso_token): ?>
-        <p style="font-size:12px">Código de acompanhamento (guarde junto com o número):</p>
-        <div class="num" style="font-size:14px;letter-spacing:.02em"><?= h($chamado_sucesso_token) ?></div>
+        <p style="font-size:12px;margin-top:.6rem">Código de acompanhamento:</p>
+        <button type="button" class="num copiavel" style="font-size:14px;letter-spacing:.02em" data-copy="<?= h($chamado_sucesso_token) ?>" title="Copiar código">
+          <?= h($chamado_sucesso_token) ?> <i class="bi bi-clipboard ms-1" style="font-size:12px;opacity:.6"></i>
+        </button>
       <?php endif; ?>
-      <p>Nossa equipe de TI receberá sua solicitação em breve.</p>
-      <div class="d-flex flex-column gap-2 mt-2 align-items-center">
-        <a href="?aba=ti&subaba=abrir" class="btn-outline-brand"><i class="bi bi-plus-circle me-1"></i>Abrir outro chamado</a>
-        <a href="?aba=ti&subaba=acompanhar&numero_chamado=<?= urlencode($chamado_sucesso) ?>&t=<?= urlencode($chamado_sucesso_token) ?>" class="text-primary fw-semibold" style="font-size:13px"><i class="bi bi-clock-history me-1"></i>Acompanhar este chamado</a>
+      <div class="d-flex flex-column gap-2 mt-3 align-items-center">
+        <button type="button" class="btn-send copiavel" style="max-width:320px" data-copy="<?= h($ac_link) ?>" data-copy-label="Link copiado!">
+          <i class="bi bi-link-45deg me-1"></i>Copiar link de acompanhamento
+        </button>
+        <a href="?aba=ti&subaba=acompanhar&numero_chamado=<?= urlencode($chamado_sucesso) ?>&t=<?= urlencode($chamado_sucesso_token) ?>" class="text-primary fw-semibold" style="font-size:13px"><i class="bi bi-clock-history me-1"></i>Acompanhar este chamado agora</a>
+        <a href="?aba=ti&subaba=abrir" class="btn-outline-brand mt-1"><i class="bi bi-plus-circle me-1"></i>Abrir outro chamado</a>
       </div>
+      <p class="text-muted mt-3 mb-0" style="font-size:11.5px">
+        <i class="bi bi-info-circle me-1"></i>Este chamado também fica salvo na aba <strong>Acompanhar</strong> deste navegador.
+      </p>
     </div>
   <?php else: ?>
     <div class="form-card-header">
@@ -686,9 +713,6 @@ elseif ($aba === 'ti' && $subaba === 'acompanhar'):
       <div><h2><i class="bi bi-pc-display-horizontal"></i> Rastrear Chamado</h2><p>Informe o número e o código de acompanhamento</p></div>
     </div>
     <div class="panel-body">
-      <?php if ($chamado_erro_busca && $numero_chamado): ?>
-        <div class="alert alert-warning" style="font-size:13px"><?= h($chamado_erro_busca) ?></div>
-      <?php endif; ?>
       <form method="get" class="row g-2 align-items-end">
         <input type="hidden" name="aba" value="ti">
         <input type="hidden" name="subaba" value="acompanhar">
@@ -710,6 +734,14 @@ elseif ($aba === 'ti' && $subaba === 'acompanhar'):
       </p>
     </div>
   </div>
+
+  <!-- Chamados abertos neste navegador (localStorage) -->
+  <div class="panel-card" id="meusItensTi" style="display:none">
+    <div class="panel-head">
+      <div><h2><i class="bi bi-clock-history"></i> Abertos neste navegador</h2><p>Acesso rápido — ficam salvos só neste computador</p></div>
+    </div>
+    <div class="panel-body p-0"><div id="meusItensTiLista"></div></div>
+  </div>
 <?php endif; ?>
 
 <?php
@@ -720,21 +752,35 @@ elseif ($aba === 'sup' && $subaba === 'pedir'):
 ?>
 
 <div class="form-card">
-  <?php if ($sup_sucesso): ?>
-    <div class="success-box">
+  <?php if ($sup_sucesso):
+    $ac_link_sup = APP_URL . '/portal.php?aba=sup&subaba=acompanhar&numero_sup=' . urlencode($sup_sucesso) . '&t=' . urlencode($sup_sucesso_token);
+  ?>
+    <div class="success-box"
+         data-registrar="sup"
+         data-numero="<?= h($sup_sucesso) ?>"
+         data-token="<?= h($sup_sucesso_token) ?>">
       <div class="chk"><i class="bi bi-check-circle-fill"></i></div>
       <h3>Pedido enviado com sucesso!</h3>
-      <p>Guarde o código para acompanhar:</p>
-      <div class="num"><?= h($sup_sucesso) ?></div>
+      <p style="font-size:12px">Toque para copiar:</p>
+      <button type="button" class="num copiavel" data-copy="<?= h($sup_sucesso) ?>" title="Copiar número">
+        <?= h($sup_sucesso) ?> <i class="bi bi-clipboard ms-1" style="font-size:13px;opacity:.6"></i>
+      </button>
       <?php if ($sup_sucesso_token): ?>
-        <p style="font-size:12px">Código de acompanhamento:</p>
-        <div class="num" style="font-size:14px;letter-spacing:.02em"><?= h($sup_sucesso_token) ?></div>
+        <p style="font-size:12px;margin-top:.6rem">Código de acompanhamento:</p>
+        <button type="button" class="num copiavel" style="font-size:14px;letter-spacing:.02em" data-copy="<?= h($sup_sucesso_token) ?>" title="Copiar código">
+          <?= h($sup_sucesso_token) ?> <i class="bi bi-clipboard ms-1" style="font-size:12px;opacity:.6"></i>
+        </button>
       <?php endif; ?>
-      <p>A equipe de TI irá separar os itens e entregar no seu setor.</p>
-      <div class="d-flex flex-column gap-2 mt-2 align-items-center">
-        <a href="?aba=sup&subaba=pedir" class="btn-outline-brand"><i class="bi bi-plus-circle me-1"></i>Fazer outro pedido</a>
-        <a href="?aba=sup&subaba=acompanhar&numero_sup=<?= urlencode($sup_sucesso) ?>&t=<?= urlencode($sup_sucesso_token) ?>" class="text-primary fw-semibold" style="font-size:13px"><i class="bi bi-clock-history me-1"></i>Acompanhar este pedido</a>
+      <div class="d-flex flex-column gap-2 mt-3 align-items-center">
+        <button type="button" class="btn-send copiavel" style="max-width:320px" data-copy="<?= h($ac_link_sup) ?>" data-copy-label="Link copiado!">
+          <i class="bi bi-link-45deg me-1"></i>Copiar link de acompanhamento
+        </button>
+        <a href="?aba=sup&subaba=acompanhar&numero_sup=<?= urlencode($sup_sucesso) ?>&t=<?= urlencode($sup_sucesso_token) ?>" class="text-primary fw-semibold" style="font-size:13px"><i class="bi bi-clock-history me-1"></i>Acompanhar este pedido agora</a>
+        <a href="?aba=sup&subaba=pedir" class="btn-outline-brand mt-1"><i class="bi bi-plus-circle me-1"></i>Fazer outro pedido</a>
       </div>
+      <p class="text-muted mt-3 mb-0" style="font-size:11.5px">
+        <i class="bi bi-info-circle me-1"></i>Este pedido também fica salvo na aba <strong>Acompanhar</strong> deste navegador.
+      </p>
     </div>
   <?php else: ?>
     <div class="form-card-header">
@@ -934,9 +980,6 @@ elseif ($aba === 'sup' && $subaba === 'acompanhar'):
       <div><h2><i class="bi bi-box-seam"></i> Rastrear Pedido</h2><p>Informe o número e o código de acompanhamento</p></div>
     </div>
     <div class="panel-body">
-      <?php if ($sup_erro_busca && $numero_sup_busca): ?>
-        <div class="alert alert-warning" style="font-size:13px"><?= h($sup_erro_busca) ?></div>
-      <?php endif; ?>
       <form method="get" class="row g-2 align-items-end">
         <input type="hidden" name="aba" value="sup">
         <input type="hidden" name="subaba" value="acompanhar">
@@ -957,6 +1000,14 @@ elseif ($aba === 'sup' && $subaba === 'acompanhar'):
       </p>
     </div>
   </div>
+
+  <!-- Pedidos abertos neste navegador (localStorage) -->
+  <div class="panel-card" id="meusItensSup" style="display:none">
+    <div class="panel-head">
+      <div><h2><i class="bi bi-clock-history"></i> Abertos neste navegador</h2><p>Acesso rápido — ficam salvos só neste computador</p></div>
+    </div>
+    <div class="panel-body p-0"><div id="meusItensSupLista"></div></div>
+  </div>
 <?php endif; ?>
 
 <?php endif; ?>
@@ -974,6 +1025,92 @@ elseif ($aba === 'sup' && $subaba === 'acompanhar'):
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 
 <script>
+// ── Clique para copiar (número, código, link) ──────────────
+(function () {
+  function copiar(texto) {
+    if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(texto);
+    return new Promise(function (res, rej) {
+      var ta = document.createElement('textarea');
+      ta.value = texto; ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.select();
+      try { document.execCommand('copy'); res(); } catch (e) { rej(e); }
+      document.body.removeChild(ta);
+    });
+  }
+  document.addEventListener('click', function (e) {
+    var el = e.target.closest('.copiavel');
+    if (!el) return;
+    var txt = el.getAttribute('data-copy');
+    var label = el.getAttribute('data-copy-label') || 'Copiado!';
+    var original = el.innerHTML;
+    function feedback(ok) {
+      el.classList.add('copiado');
+      el.innerHTML = '<i class="bi bi-' + (ok ? 'check-lg' : 'exclamation-triangle') + ' me-1"></i>' + (ok ? label : 'Selecione e copie');
+      setTimeout(function () { el.classList.remove('copiado'); el.innerHTML = original; }, ok ? 1600 : 2600);
+    }
+    copiar(txt).then(function () { feedback(true); }).catch(function () {
+      try { window.prompt('Copie manualmente (Ctrl+C):', txt); } catch (e) { feedback(false); }
+    });
+  });
+})();
+
+// ── "Meus itens neste navegador" (localStorage) ───────────────
+(function () {
+  var KEY = 'helpti_portal_itens';
+  function ler() { try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } catch (e) { return []; } }
+  function salvar(l) { try { localStorage.setItem(KEY, JSON.stringify(l.slice(0, 30))); } catch (e) {} }
+
+  // registra o item recém-aberto (data-registrar no .success-box)
+  var box = document.querySelector('.success-box[data-registrar]');
+  if (box && box.dataset.numero) {
+    var lista = ler().filter(function (i) { return i.numero !== box.dataset.numero; });
+    lista.unshift({
+      tipo: box.dataset.registrar, numero: box.dataset.numero,
+      token: box.dataset.token || '', ts: Date.now()
+    });
+    salvar(lista);
+  }
+
+  function fmtData(ts) {
+    var d = new Date(ts);
+    return d.toLocaleDateString('pt-BR') + ' ' + d.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  }
+  function esc(s) { var d = document.createElement('div'); d.textContent = s == null ? '' : s; return d.innerHTML; }
+
+  function render(tipo, wrapId, listId) {
+    var wrap = document.getElementById(wrapId), cont = document.getElementById(listId);
+    if (!wrap || !cont) return;
+    var itens = ler().filter(function (i) { return i.tipo === tipo; });
+    if (!itens.length) { wrap.style.display = 'none'; return; }
+    var pnum = tipo === 'ti' ? 'numero_chamado' : 'numero_sup';
+    cont.innerHTML = itens.map(function (i) {
+      var url = '?aba=' + (tipo === 'ti' ? 'ti' : 'sup') + '&subaba=acompanhar&' + pnum + '=' +
+                encodeURIComponent(i.numero) + (i.token ? '&t=' + encodeURIComponent(i.token) : '');
+      return '<div class="meu-item-wrap" style="display:flex">' +
+        '<a class="meu-item flex-grow-1" href="' + url + '">' +
+          '<span><span class="mi-num">' + esc(i.numero) + '</span>' +
+          '<div class="mi-data">Aberto em ' + fmtData(i.ts) + '</div></span>' +
+          '<i class="bi bi-chevron-right text-muted"></i>' +
+        '</a>' +
+        '<button class="mi-esquecer" title="Remover desta lista" data-esquecer="' + esc(i.numero) + '"><i class="bi bi-x-lg"></i></button>' +
+      '</div>';
+    }).join('');
+    wrap.style.display = '';
+  }
+
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-esquecer]');
+    if (!b) return;
+    e.preventDefault();
+    salvar(ler().filter(function (i) { return i.numero !== b.getAttribute('data-esquecer'); }));
+    render('ti', 'meusItensTi', 'meusItensTiLista');
+    render('sup', 'meusItensSup', 'meusItensSupLista');
+  });
+
+  render('ti', 'meusItensTi', 'meusItensTiLista');
+  render('sup', 'meusItensSup', 'meusItensSupLista');
+})();
+
 // ── Validação de imagens + preview em chips ──
 const imgInput = document.getElementById('imagens');
 if (imgInput) {
