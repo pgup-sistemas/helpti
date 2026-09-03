@@ -172,7 +172,7 @@ $primeiro_nome = explode(' ', trim($u['nome']))[0];
   </div>
   <div class="table-responsive">
     <table class="table mb-0">
-      <thead><tr><th>Nº</th><th>Descrição</th><th>Setor</th><th>Responsável</th><th>Aberto há</th><th></th></tr></thead>
+      <thead><tr><th>Nº</th><th>Descrição</th><th>Setor</th><th>Responsável</th><th>Aberto há</th><th class="text-end">Ações</th></tr></thead>
       <tbody>
         <?php foreach ($urgentes as $urg): ?>
         <tr data-href="chamado.php?id=<?= $urg['id'] ?>">
@@ -183,7 +183,7 @@ $primeiro_nome = explode(' ', trim($u['nome']))[0];
           <td class="tx-danger" style="font-size:12px;white-space:nowrap">
             <?php $diff = time()-strtotime($urg['criado_em']); $h=floor($diff/3600); $m=floor(($diff%3600)/60); echo "{$h}h {$m}min"; ?>
           </td>
-          <td><a href="chamado.php?id=<?= $urg['id'] ?>" class="btn btn-danger btn-xs">Atender</a></td>
+          <td class="text-end"><a href="chamado.php?id=<?= $urg['id'] ?>" class="btn btn-outline-primary btn-xs">Atender</a></td>
         </tr>
         <?php endforeach; ?>
       </tbody>
@@ -226,7 +226,7 @@ $primeiro_nome = explode(' ', trim($u['nome']))[0];
           <i class="bi bi-clock me-1"></i>Vence em <strong><?= $diff ?></strong> dia(s) — <?= $prev->format('d/m/Y') ?>
         <?php endif; ?>
       </div>
-      <a href="termos.php" class="btn btn-outline-danger btn-xs flex-shrink-0">Devolver</a>
+      <a href="termos.php" class="btn btn-outline-primary btn-xs flex-shrink-0">Devolver</a>
     </div>
     <?php endforeach; ?>
   </div>
@@ -249,7 +249,7 @@ $primeiro_nome = explode(' ', trim($u['nome']))[0];
         <span class="text-muted" style="font-size:12px"> · <?= h($ct['tipo']) ?> · <?= h($ct['fornecedor']) ?></span>
       </div>
       <div class="tx-warning" style="white-space:nowrap;font-size:12px"><i class="bi bi-clock me-1"></i>Vence em <strong><?= $dias ?></strong> dia(s) — <?= date('d/m/Y', strtotime($ct['data_vencimento'])) ?></div>
-      <a href="contratos.php?action=editar&id=<?= $ct['id'] ?>" class="btn btn-outline-warning btn-xs flex-shrink-0">Renovar</a>
+      <a href="contratos.php?action=editar&id=<?= $ct['id'] ?>" class="btn btn-outline-primary btn-xs flex-shrink-0">Renovar</a>
     </div>
     <?php endforeach; ?>
     <?php foreach ($garantias_alerta as $ga):
@@ -261,7 +261,7 @@ $primeiro_nome = explode(' ', trim($u['nome']))[0];
         <span class="text-muted" style="font-size:12px"> · <?= h($ga['tipo']) ?> · S/N: <?= h($ga['numero_serie']) ?></span>
       </div>
       <div class="tx-warning" style="white-space:nowrap;font-size:12px"><i class="bi bi-shield me-1"></i>Garantia em <strong><?= $dias ?></strong> dia(s) — <?= date('d/m/Y', strtotime($ga['garantia_ate'])) ?></div>
-      <a href="inventario.php?action=editar&id=<?= $ga['id'] ?>" class="btn btn-outline-secondary btn-xs flex-shrink-0">Ver</a>
+      <a href="inventario.php?action=editar&id=<?= $ga['id'] ?>" class="btn btn-outline-primary btn-xs flex-shrink-0">Ver</a>
     </div>
     <?php endforeach; ?>
   </div>
@@ -277,7 +277,7 @@ $primeiro_nome = explode(' ', trim($u['nome']))[0];
   </div>
   <div class="table-responsive">
     <table class="table table-hover mb-0">
-      <thead><tr><th>Código</th><th>Setor</th><th>Solicitante</th><th>Itens</th><th>Status</th><th>Data</th><th></th></tr></thead>
+      <thead><tr><th>Código</th><th>Setor</th><th>Solicitante</th><th>Itens</th><th>Status</th><th>Data</th><th class="text-end">Ações</th></tr></thead>
       <tbody>
         <?php foreach ($sup_pendentes as $sp): ?>
         <tr data-href="pedidos_suprimentos.php?status=<?= $sp['status']==='Pendente'?'Pendente':'Aprovado' ?>">
@@ -293,7 +293,7 @@ $primeiro_nome = explode(' ', trim($u['nome']))[0];
             <?php endif; ?>
           </td>
           <td style="font-size:12px;white-space:nowrap"><?= date('d/m H:i', strtotime($sp['criado_em'])) ?></td>
-          <td><a href="pedidos_suprimentos.php" class="btn btn-outline-primary btn-xs">Ação</a></td>
+          <td class="text-end"><a href="pedidos_suprimentos.php" class="btn btn-outline-primary btn-xs">Ação</a></td>
         </tr>
         <?php endforeach; ?>
       </tbody>
@@ -311,7 +311,7 @@ $primeiro_nome = explode(' ', trim($u['nome']))[0];
   </div>
   <div class="table-responsive">
     <table class="table table-hover mb-0">
-      <thead><tr><th>Nº</th><th>Descrição</th><th>Setor</th><th>Status</th><th>Data</th><th></th></tr></thead>
+      <thead><tr><th>Nº</th><th>Descrição</th><th>Setor</th><th>Status</th><th>Data</th><th class="text-end">Ações</th></tr></thead>
       <tbody>
         <?php foreach ($meusChamados as $c): ?>
         <tr data-href="chamado.php?id=<?= $c['id'] ?>">
@@ -320,7 +320,7 @@ $primeiro_nome = explode(' ', trim($u['nome']))[0];
           <td style="font-size:12px"><?= h($c['setor']) ?></td>
           <td><?= badgeStatus($c['status']) ?></td>
           <td style="font-size:12px;white-space:nowrap"><?= date('d/m H:i', strtotime($c['criado_em'])) ?></td>
-          <td><a href="chamado.php?id=<?= $c['id'] ?>" class="btn btn-outline-primary btn-xs">Abrir</a></td>
+          <td class="text-end"><a href="chamado.php?id=<?= $c['id'] ?>" class="btn btn-outline-primary btn-xs">Abrir</a></td>
         </tr>
         <?php endforeach; ?>
       </tbody>
@@ -344,7 +344,7 @@ $primeiro_nome = explode(' ', trim($u['nome']))[0];
   <div class="table-responsive">
     <table class="table table-hover mb-0">
       <thead>
-        <tr><th>Nº</th><th>Descrição</th><th>Setor</th><th>Solicitante</th><th>Responsável</th><th>Status</th><th>Data</th><th></th></tr>
+        <tr><th>Nº</th><th>Descrição</th><th>Setor</th><th>Solicitante</th><th>Responsável</th><th>Status</th><th>Data</th><th class="text-end">Ações</th></tr>
       </thead>
       <tbody>
         <?php foreach ($recentes as $c): ?>
@@ -356,7 +356,7 @@ $primeiro_nome = explode(' ', trim($u['nome']))[0];
           <td><?= $c['resp_nome'] ? h($c['resp_nome']) : '<span class="text-danger">—</span>' ?></td>
           <td><?= badgeStatus($c['status']) ?></td>
           <td style="font-size:12px;white-space:nowrap"><?= date('d/m H:i', strtotime($c['criado_em'])) ?></td>
-          <td><a href="chamado.php?id=<?= $c['id'] ?>" class="btn btn-outline-primary btn-xs">Abrir</a></td>
+          <td class="text-end"><a href="chamado.php?id=<?= $c['id'] ?>" class="btn btn-outline-primary btn-xs">Abrir</a></td>
         </tr>
         <?php endforeach; ?>
         <?php if (!$recentes): ?>
