@@ -626,8 +626,10 @@ elseif ($aba === 'ti' && $subaba === 'acompanhar'):
           <div class="col-6"><div class="text-muted small">Responsável</div><div><?= $chamado_detalhe['responsavel_id'] ? 'Em atendimento' : 'Aguardando atribuição' ?></div></div>
         </div>
         <div class="alert alert-light border mt-3" style="font-size:12.5px">
-          <i class="bi bi-lock me-1"></i>Para ver a descrição, o histórico e avaliar o atendimento, use o
-          <strong>link completo de acompanhamento</strong> que apareceu quando você abriu o chamado.
+          <i class="bi bi-info-circle me-1"></i>Acima está a <strong>situação atual</strong> do seu chamado.
+          Para ver a descrição completa, o histórico e avaliar o atendimento, abra o
+          <strong>link de acompanhamento</strong> que você recebeu ao registrar o chamado —
+          ou escolha o chamado na lista <strong>“Abertos neste navegador”</strong> logo abaixo (se você o abriu neste computador).
         </div>
       <?php else: ?>
       <div class="row g-4">
@@ -734,15 +736,15 @@ elseif ($aba === 'ti' && $subaba === 'acompanhar'):
       </p>
     </div>
   </div>
-
-  <!-- Chamados abertos neste navegador (localStorage) -->
-  <div class="panel-card" id="meusItensTi" style="display:none">
-    <div class="panel-head">
-      <div><h2><i class="bi bi-clock-history"></i> Abertos neste navegador</h2><p>Acesso rápido — ficam salvos só neste computador</p></div>
-    </div>
-    <div class="panel-body p-0"><div id="meusItensTiLista"></div></div>
-  </div>
 <?php endif; ?>
+
+<!-- Chamados abertos neste navegador (localStorage) — aparece em ambas as visões -->
+<div class="panel-card" id="meusItensTi" style="display:none">
+  <div class="panel-head">
+    <div><h2><i class="bi bi-clock-history"></i> Abertos neste navegador</h2><p>Acesso rápido — ficam salvos só neste computador</p></div>
+  </div>
+  <div class="panel-body p-0"><div id="meusItensTiLista"></div></div>
+</div>
 
 <?php
 // ═══════════════════════════════════════
@@ -922,7 +924,9 @@ elseif ($aba === 'sup' && $subaba === 'acompanhar'):
           <div class="col-6"><div class="text-muted small">Situação</div><div class="fw-semibold"><?= h($pedido_detalhe['status']) ?></div></div>
         </div>
         <div class="alert alert-light border mt-3" style="font-size:12.5px">
-          <i class="bi bi-lock me-1"></i>Para ver os itens e os detalhes, use o <strong>link completo</strong> gerado quando o pedido foi enviado.
+          <i class="bi bi-info-circle me-1"></i>Acima está a <strong>situação atual</strong> do pedido.
+          Para ver os itens e os detalhes, abra o <strong>link de acompanhamento</strong> gerado ao enviar o pedido —
+          ou escolha-o na lista <strong>“Abertos neste navegador”</strong> logo abaixo.
         </div>
       <?php else: ?>
       <div class="row g-4">
@@ -1000,15 +1004,15 @@ elseif ($aba === 'sup' && $subaba === 'acompanhar'):
       </p>
     </div>
   </div>
-
-  <!-- Pedidos abertos neste navegador (localStorage) -->
-  <div class="panel-card" id="meusItensSup" style="display:none">
-    <div class="panel-head">
-      <div><h2><i class="bi bi-clock-history"></i> Abertos neste navegador</h2><p>Acesso rápido — ficam salvos só neste computador</p></div>
-    </div>
-    <div class="panel-body p-0"><div id="meusItensSupLista"></div></div>
-  </div>
 <?php endif; ?>
+
+<!-- Pedidos abertos neste navegador (localStorage) — aparece em ambas as visões -->
+<div class="panel-card" id="meusItensSup" style="display:none">
+  <div class="panel-head">
+    <div><h2><i class="bi bi-clock-history"></i> Abertos neste navegador</h2><p>Acesso rápido — ficam salvos só neste computador</p></div>
+  </div>
+  <div class="panel-body p-0"><div id="meusItensSupLista"></div></div>
+</div>
 
 <?php endif; ?>
 
