@@ -369,6 +369,9 @@ a{color:var(--brand)}
 .success-box h3{font-size:17px;font-weight:700;margin:.6rem 0 .3rem}
 .success-box .num{display:inline-block;background:#f0fdf4;border:1.5px solid #bbf7d0;color:#166534;font-size:20px;font-weight:800;border-radius:10px;padding:.45rem 1.25rem;letter-spacing:.05em;margin:.6rem 0}
 .success-box p{font-size:13px;color:#6b7280}
+.success-box .ss-hint{font-size:11.5px;color:#9ca3af;margin:.15rem 0 0}
+.success-box .ss-link-sec{font-size:12.5px;color:#6c757d;text-decoration:none;margin-top:.35rem}
+.success-box .ss-link-sec:hover{color:var(--brand);text-decoration:underline}
 /* clique-para-copiar */
 .copiavel{cursor:pointer;transition:.15s}
 .copiavel:hover{filter:brightness(.97)}
@@ -500,26 +503,17 @@ if ($aba === 'ti' && $subaba === 'abrir'):
          data-token="<?= h($chamado_sucesso_token) ?>">
       <div class="chk"><i class="bi bi-check-circle-fill"></i></div>
       <h3>Chamado aberto com sucesso!</h3>
-      <p style="font-size:12px">Toque para copiar:</p>
-      <button type="button" class="num copiavel" data-copy="<?= h($chamado_sucesso) ?>" title="Copiar número">
-        <?= h($chamado_sucesso) ?> <i class="bi bi-clipboard ms-1" style="font-size:13px;opacity:.6"></i>
+      <p>Nossa equipe de TI já foi avisada.</p>
+
+      <button type="button" class="num copiavel" data-copy="<?= h($chamado_sucesso) ?>" data-copy-label="Número copiado!" title="Copiar número">
+        <?= h($chamado_sucesso) ?> <i class="bi bi-clipboard ms-1" style="font-size:13px;opacity:.55"></i>
       </button>
-      <?php if ($chamado_sucesso_token): ?>
-        <p style="font-size:12px;margin-top:.6rem">Código de acompanhamento:</p>
-        <button type="button" class="num copiavel" style="font-size:14px;letter-spacing:.02em" data-copy="<?= h($chamado_sucesso_token) ?>" title="Copiar código">
-          <?= h($chamado_sucesso_token) ?> <i class="bi bi-clipboard ms-1" style="font-size:12px;opacity:.6"></i>
-        </button>
-      <?php endif; ?>
+      <p class="ss-hint">Guarde este número — é ele que você informa se precisar falar com a TI.</p>
+
       <div class="d-flex flex-column gap-2 mt-3 align-items-center">
-        <button type="button" class="btn-send copiavel" style="max-width:320px" data-copy-link="ti" data-copy="" data-copy-label="Link copiado!">
-          <i class="bi bi-link-45deg me-1"></i>Copiar link de acompanhamento
-        </button>
-        <a href="?aba=ti&subaba=acompanhar&numero_chamado=<?= urlencode($chamado_sucesso) ?>&t=<?= urlencode($chamado_sucesso_token) ?>" class="text-primary fw-semibold" style="font-size:13px"><i class="bi bi-clock-history me-1"></i>Acompanhar este chamado agora</a>
-        <a href="?aba=ti&subaba=abrir" class="btn-outline-brand mt-1"><i class="bi bi-plus-circle me-1"></i>Abrir outro chamado</a>
+        <a href="?aba=ti&subaba=abrir" class="btn-send" style="max-width:260px;text-decoration:none;text-align:center"><i class="bi bi-plus-circle me-1"></i>Abrir outro chamado</a>
+        <a href="?aba=ti&subaba=acompanhar&numero_chamado=<?= urlencode($chamado_sucesso) ?>&t=<?= urlencode($chamado_sucesso_token) ?>" class="ss-link-sec">Acompanhar o andamento deste chamado →</a>
       </div>
-      <p class="text-muted mt-3 mb-0" style="font-size:11.5px">
-        <i class="bi bi-info-circle me-1"></i>Este chamado também fica salvo na aba <strong>Acompanhar</strong> deste navegador.
-      </p>
     </div>
   <?php else: ?>
     <div class="form-card-header">
@@ -764,26 +758,17 @@ elseif ($aba === 'sup' && $subaba === 'pedir'):
          data-token="<?= h($sup_sucesso_token) ?>">
       <div class="chk"><i class="bi bi-check-circle-fill"></i></div>
       <h3>Pedido enviado com sucesso!</h3>
-      <p style="font-size:12px">Toque para copiar:</p>
-      <button type="button" class="num copiavel" data-copy="<?= h($sup_sucesso) ?>" title="Copiar número">
-        <?= h($sup_sucesso) ?> <i class="bi bi-clipboard ms-1" style="font-size:13px;opacity:.6"></i>
+      <p>A equipe de TI vai separar os itens e entregar no seu setor.</p>
+
+      <button type="button" class="num copiavel" data-copy="<?= h($sup_sucesso) ?>" data-copy-label="Número copiado!" title="Copiar número">
+        <?= h($sup_sucesso) ?> <i class="bi bi-clipboard ms-1" style="font-size:13px;opacity:.55"></i>
       </button>
-      <?php if ($sup_sucesso_token): ?>
-        <p style="font-size:12px;margin-top:.6rem">Código de acompanhamento:</p>
-        <button type="button" class="num copiavel" style="font-size:14px;letter-spacing:.02em" data-copy="<?= h($sup_sucesso_token) ?>" title="Copiar código">
-          <?= h($sup_sucesso_token) ?> <i class="bi bi-clipboard ms-1" style="font-size:12px;opacity:.6"></i>
-        </button>
-      <?php endif; ?>
+      <p class="ss-hint">Guarde este número para consultar o pedido depois.</p>
+
       <div class="d-flex flex-column gap-2 mt-3 align-items-center">
-        <button type="button" class="btn-send copiavel" style="max-width:320px" data-copy-link="sup" data-copy="" data-copy-label="Link copiado!">
-          <i class="bi bi-link-45deg me-1"></i>Copiar link de acompanhamento
-        </button>
-        <a href="?aba=sup&subaba=acompanhar&numero_sup=<?= urlencode($sup_sucesso) ?>&t=<?= urlencode($sup_sucesso_token) ?>" class="text-primary fw-semibold" style="font-size:13px"><i class="bi bi-clock-history me-1"></i>Acompanhar este pedido agora</a>
-        <a href="?aba=sup&subaba=pedir" class="btn-outline-brand mt-1"><i class="bi bi-plus-circle me-1"></i>Fazer outro pedido</a>
+        <a href="?aba=sup&subaba=pedir" class="btn-send" style="max-width:260px;text-decoration:none;text-align:center"><i class="bi bi-plus-circle me-1"></i>Fazer outro pedido</a>
+        <a href="?aba=sup&subaba=acompanhar&numero_sup=<?= urlencode($sup_sucesso) ?>&t=<?= urlencode($sup_sucesso_token) ?>" class="ss-link-sec">Acompanhar este pedido →</a>
       </div>
-      <p class="text-muted mt-3 mb-0" style="font-size:11.5px">
-        <i class="bi bi-info-circle me-1"></i>Este pedido também fica salvo na aba <strong>Acompanhar</strong> deste navegador.
-      </p>
     </div>
   <?php else: ?>
     <div class="form-card-header">
@@ -1063,15 +1048,11 @@ elseif ($aba === 'sup' && $subaba === 'acompanhar'):
   function ler() { try { return JSON.parse(localStorage.getItem(KEY) || '[]'); } catch (e) { return []; } }
   function salvar(l) { try { localStorage.setItem(KEY, JSON.stringify(l.slice(0, 30))); } catch (e) {} }
 
-  // URL de acompanhamento — construída a partir da origem REAL onde o portal
-  // está sendo servido (não de APP_URL do PHP, que pode divergir).
-  function linkAcompanhamento(tipo, numero, token, absoluto) {
+  function linkAcompanhamento(tipo, numero, token) {
     var pnum = tipo === 'ti' ? 'numero_chamado' : 'numero_sup';
-    var base = absoluto ? (location.origin + location.pathname) : location.pathname;
-    var qs = '?aba=' + (tipo === 'ti' ? 'ti' : 'sup') + '&subaba=acompanhar&' +
-             pnum + '=' + encodeURIComponent(numero) +
-             (token ? '&t=' + encodeURIComponent(token) : '');
-    return base + qs;
+    return location.pathname + '?aba=' + (tipo === 'ti' ? 'ti' : 'sup') +
+           '&subaba=acompanhar&' + pnum + '=' + encodeURIComponent(numero) +
+           (token ? '&t=' + encodeURIComponent(token) : '');
   }
 
   // registra o item recém-aberto (data-registrar no .success-box)
@@ -1083,13 +1064,6 @@ elseif ($aba === 'sup' && $subaba === 'acompanhar'):
       token: box.dataset.token || '', ts: Date.now()
     });
     salvar(lista);
-
-    // preenche o botão "Copiar link de acompanhamento" com a URL absoluta correta
-    var btnLink = document.querySelector('[data-copy-link]');
-    if (btnLink) {
-      btnLink.setAttribute('data-copy',
-        linkAcompanhamento(btnLink.dataset.copyLink, box.dataset.numero, box.dataset.token, true));
-    }
   }
 
   function fmtData(ts) {
@@ -1104,7 +1078,7 @@ elseif ($aba === 'sup' && $subaba === 'acompanhar'):
     var itens = ler().filter(function (i) { return i.tipo === tipo; });
     if (!itens.length) { wrap.style.display = 'none'; return; }
     cont.innerHTML = itens.map(function (i) {
-      var url = linkAcompanhamento(tipo, i.numero, i.token, false);
+      var url = linkAcompanhamento(tipo, i.numero, i.token);
       return '<div class="meu-item">' +
         '<a class="mi-info" href="' + url + '">' +
           '<span class="mi-num">' + esc(i.numero) + '</span>' +
