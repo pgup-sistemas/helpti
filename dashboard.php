@@ -117,7 +117,7 @@ $primeiro_nome = explode(' ', trim($u['nome']))[0];
 <div class="section-label">
   <i class="bi bi-ticket-detailed me-1"></i>Chamados
 </div>
-<div class="row g-3 mb-3">
+<div class="row g-3 mb-4">
   <?php foreach([
     ['Total','total','var(--brand)','bi-ticket-detailed','chamados.php?mes=&ano='],
     ['Abertos','abertos','#0ea5e9','bi-inbox-fill','chamados.php?mes=&ano=&status=Aberto'],
@@ -165,7 +165,7 @@ $primeiro_nome = explode(' ', trim($u['nome']))[0];
 
 <!-- ── Alertas prioritários ── -->
 <?php if ($urgentes): ?>
-<div class="card mb-3" style="border-left:4px solid #ef4444">
+<div class="card mb-4">
   <div class="card-header card-header-danger d-flex align-items-center gap-2">
     <i class="bi bi-exclamation-octagon-fill"></i>
     <strong>Atenção — <?= count($urgentes) ?> chamado(s) Alta Complexidade há mais de 2h</strong>
@@ -193,7 +193,7 @@ $primeiro_nome = explode(' ', trim($u['nome']))[0];
 <?php endif; ?>
 
 <?php if ($sem_resp > 0): ?>
-<div class="alert alert-warning d-flex align-items-center mb-3" style="font-size:13.5px">
+<div class="alert alert-warning d-flex align-items-center mb-4" style="font-size:13.5px">
   <i class="bi bi-exclamation-triangle-fill me-2"></i>
   <div><strong><?= $sem_resp ?> chamado(s)</strong> abertos sem responsável.
     <a href="chamados.php?status=Aberto&resp=0" class="ms-2 fw-semibold">Atribuir agora →</a>
@@ -202,7 +202,7 @@ $primeiro_nome = explode(' ', trim($u['nome']))[0];
 <?php endif; ?>
 
 <?php if ($termos_alerta): ?>
-<div class="card mb-3" style="border-left:4px solid #E63946">
+<div class="card mb-4">
   <div class="card-header card-header-danger d-flex align-items-center gap-2">
     <i class="bi bi-person-exclamation-fill"></i>
     <strong>Empréstimos vencidos ou a vencer (7 dias)</strong>
@@ -234,7 +234,7 @@ $primeiro_nome = explode(' ', trim($u['nome']))[0];
 <?php endif; ?>
 
 <?php if ($contratos_alerta || $garantias_alerta): ?>
-<div class="card mb-3" style="border-left:4px solid #f59e0b">
+<div class="card mb-4">
   <div class="card-header card-header-warning d-flex align-items-center gap-2">
     <i class="bi bi-bell-fill"></i>
     <strong>Lembretes — contratos e garantias</strong>
@@ -270,7 +270,7 @@ $primeiro_nome = explode(' ', trim($u['nome']))[0];
 
 <!-- ── Suprimentos pendentes de ação ── -->
 <?php if ($sup_pendentes): ?>
-<div class="card mb-4" style="border-left:4px solid #f59e0b">
+<div class="card mb-4">
   <div class="card-header card-header-warning d-flex justify-content-between align-items-center">
     <span><i class="bi bi-box-seam-fill me-2"></i>Pedidos de suprimentos aguardando ação</span>
     <a href="pedidos_suprimentos.php" class="btn btn-outline-secondary btn-xs">Ver todos</a>
@@ -335,8 +335,8 @@ $primeiro_nome = explode(' ', trim($u['nome']))[0];
   <div class="card-body" style="height:180px"><canvas id="chartDash"></canvas></div>
 </div>
 
-<!-- ── Chamados em aberto / andamento ── -->
-<div class="card mb-4">
+<!-- ── Chamados em aberto / andamento (último bloco) ── -->
+<div class="card mb-0">
   <div class="card-header d-flex justify-content-between align-items-center">
     <span><i class="bi bi-list-task me-2 text-primary"></i>Chamados abertos / em andamento</span>
     <a href="chamados.php" class="btn btn-outline-secondary btn-xs">Ver todos</a>
