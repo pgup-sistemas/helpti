@@ -19,7 +19,7 @@ Options -Indexes
 </FilesMatch>
 
 # ── Diretórios que nunca devem ser servidos ──
-RedirectMatch 404 (?i)/(database|bin|logs|\.git)(/|$)
+RedirectMatch 404 (?i)/(database|bin|logs|src|_local_arquivado|_backups|\.git)(/|$)
 
 # ── Cabeçalhos de segurança ──
 <IfModule mod_headers.c>

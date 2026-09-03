@@ -41,9 +41,9 @@ Status: ⬜ pendente · 🔧 em andamento · ✅ feito · ⏭️ requer ação n
 | P2-3 | SSRF no fallback HP | `snmp_coletar.php` | ✅ |
 | P2-4 | CDN sem SRI/CSP | `layout.php`, `portal.php`, `.htaccess` | ✅ |
 | P2-5 | SLA relógio-de-parede → horário comercial | `db.php`, `cron_sla.php` | ✅ |
-| P2-6 | Máquina de estados de chamado | `chamado.php`, `src/` | ⬜ (documentado, não bloqueante) |
-| P2-7 | Extrair Services (Estoque/SLA/Contrato/Auth) | `src/` | 🔧 parcial (helpers isolados) |
-| P2-8 | `declare(strict_types=1)` incremental | vários | ⬜ |
+| P2-6 | Máquina de estados de chamado (bloqueante) | `src/ChamadoWorkflow.php`, `chamado.php` | ✅ |
+| P2-7 | Extrair camada `src/` (Auth, Session, Sla, Estoque, Mailer, Seq, Log, RateLimiter) | `src/`, `db.php` (fachada) | ✅ |
+| P2-8 | `declare(strict_types=1)` — todo `src/` já é strict; procedural migra aos poucos | `src/*` | 🔧 parcial |
 | P2-9 | Health check + heartbeat de cron | `health.php` (novo), migration | ✅ |
 
 ## P3 — Futuro (condicionado a crescimento)
@@ -72,11 +72,20 @@ Rodar em produção: `php bin/migrate.php` (idempotente; tolera colunas já exis
 
 ## Arquivos novos
 
-- `.htaccess` (raiz) — bloqueia acesso a fontes/dumps/config
-- `database/migrations/*.sql`
-- `bin/migrate.php` — aplica migrations em ordem, registra em `schema_migrations`
-- `bin/cron_contratos.php` — renovação automática de contratos (com lock)
-- `bin/backup.sh` — dump + uploads → destino externo
-- `bin/lib_lock.php` — helper `cron_lock()` compartilhado
+- `.htaccess` (raiz) — bloqueia acesso a fontes/dumps/config e diretórios internos
+- `database/migrations/*.sql` + `bin/migrate.php` (registra em `schema_migrations`)
+- `bin/lib_cron.php` — `cron_guard()` (flock + CLI) e `cron_finish()` (heartbeat)
+- `bin/cron_contratos.php` — renovação automática de contratos (lock + optimistic)
+- `bin/cron_poda.php` — retenção de snapshots / audit_log / email_queue
+- `bin/backup.sh` — dump + uploads → destino externo (rclone)
 - `health.php` — endpoint de saúde (token)
-- `bin/cron_poda.php` — retenção de snapshots e audit_log
+
+### Camada de aplicação (`src/`, strict_types)
+
+- `src/bootstrap.php` — autoloader
+- `src/Log.php` · `src/Session.php` · `src/Auth.php` · `src/RateLimiter.php`
+- `src/Seq.php` · `src/Sla.php` · `src/Estoque.php` · `src/Mailer.php`
+- `src/ChamadoWorkflow.php` + `src/WorkflowException.php` — máquina de estados bloqueante
+
+`db.php` e `estoque_helpers.php` viraram **fachada fina** que delega para `src/`;
+todo o código existente segue chamando `requireLogin()`, `queueEmail()`, etc.

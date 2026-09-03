@@ -1,7 +1,5 @@
 <?php
 require 'db.php';
-session();
-$_SESSION = [];
-session_destroy();
+Auth::logout();
 header('Location: login.php');
 exit;
