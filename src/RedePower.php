@@ -95,6 +95,17 @@ final class RedePower
         // Sanitiza a credencial de qualquer eco na saída.
         $saida = str_replace([SHUTDOWN_PASS, $cred], ['***', SHUTDOWN_USER . '%***'], $saida);
 
+        if (!$ok) {
+            $s = strtolower($saida);
+            if (str_contains($s, 'logon_failure') || (str_contains($s, 'bad smb2') && str_contains($s, 'access_denied'))) {
+                $saida = 'Credencial recusada nesta máquina (não está no domínio ' . SHUTDOWN_DOMAIN . '? conta local diferente?).';
+            } elseif (str_contains($s, 'access_denied')) {
+                $saida = 'Autenticou, mas a conta não tem direito de desligar remotamente (não é admin local / falta LocalAccountTokenFilterPolicy).';
+            } elseif (str_contains($s, 'connection_refused') || str_contains($s, 'could not connect') || str_contains($s, 'timed out') || str_contains($s, 'unreachable')) {
+                $saida = 'Sem conexão — host desligado ou firewall bloqueando RPC/445.';
+            }
+        }
+
         return ['ok' => $ok, 'saida' => $saida !== '' ? $saida : ($ok ? 'OK' : 'Sem resposta do host.')];
     }
 
