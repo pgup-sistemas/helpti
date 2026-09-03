@@ -87,9 +87,10 @@ final class RedePower
 
         $saida = shell_exec('timeout 20 ' . $cmd);
         $saida = trim((string) $saida);
-        $ok    = $saida === ''
-              || stripos($saida, 'completed successfully') !== false
-              || stripos($saida, 'succes') !== false;   // "success"/"successfully"
+        // net rpc: "Shutdown of remote machine succeeded" / "Shutdown successfully aborted"
+        $ok = stripos($saida, 'succe') !== false      // succeeded / successfully
+           || stripos($saida, 'aborted') !== false
+           || ($saida === '' && $acao === 'cancelar');
 
         // Sanitiza a credencial de qualquer eco na saída.
         $saida = str_replace([SHUTDOWN_PASS, $cred], ['***', SHUTDOWN_USER . '%***'], $saida);
