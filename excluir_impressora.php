@@ -1,6 +1,6 @@
 <?php
 require 'db.php';
-requireLogin();
+requireGestora();   // ações destrutivas: gestora/admin apenas (auditoria 4.2)
 
 $pdo = db();
 

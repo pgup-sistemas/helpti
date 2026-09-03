@@ -1,112 +1,92 @@
-# 🖥️ Sistema de Chamados TI — Clínica
+# 🖥️ HelpTI
 
-## Instalação no Hostgator (10 minutos)
-
-### 1. Crie o banco de dados no cPanel
-1. Acesse o **cPanel** do Hostgator
-2. Vá em **MySQL Databases**
-3. Crie um banco: ex. `clinica_ti`
-4. Crie um usuário MySQL e anote login/senha
-5. Vincule o usuário ao banco com **All Privileges**
-
-### 2. Configure o arquivo `db.php`
-Edite o arquivo `db.php` e preencha:
-```php
-define('DB_HOST', 'localhost');
-define('DB_NAME', 'clinica_ti');        // nome do banco
-define('DB_USER', 'seu_usuario_mysql');
-define('DB_PASS', 'sua_senha_mysql');
-define('SITE_URL', 'https://seusite.com.br/ti');
-define('CLINICA_NOME', 'Nome da Clínica — T.I.');
-```
-
-### 3. Suba os arquivos via FTP ou File Manager
-- Pasta recomendada: `public_html/ti/`
-- Suba TODOS os arquivos `.php`
-
-### 4. Execute a instalação
-Acesse no navegador:
-```
-https://seusite.com.br/ti/install.php
-```
-Isso cria as tabelas e os usuários iniciais.
-
-**⚠️ IMEDIATAMENTE após a instalação, DELETE o arquivo `install.php` do servidor!**
-
-### 5. Acesse o sistema
-- **Login da equipe:** `https://seusite.com.br/ti/`
-- **Formulário público:** `https://seusite.com.br/ti/abrir.php`
+Sistema de gestão de TI para clínica — chamados, inventário, impressoras (com monitoramento SNMP), suprimentos com controle de estoque, contratos, manutenções e hosts de rede. PHP 8.3 + MySQL, sem framework.
 
 ---
 
-## Usuários iniciais
+## Módulos
 
-Os usuários são criados pelo `setup.php` com senhas geradas automaticamente.
-Consulte a saída do setup ou redefina as senhas pelo painel de usuários (`usuarios.php`)
-imediatamente após a instalação.
-
-> **Nunca armazene senhas em documentação ou repositório.**
+| Módulo | O que faz |
+|---|---|
+| **Chamados** | Abertura via portal público ou painel, atribuição, SLA, avaliação do solicitante, classificação por IA (opcional) |
+| **Inventário** | Cadastro de equipamentos, categorização automática, importação em massa via CSV, QR Code por item |
+| **Impressoras** | Monitoramento de páginas e toner via SNMP (com fallback HTTP para modelos HP com SNMP bloqueado), relatório mensal exportável |
+| **Suprimentos** | Catálogo de insumos com estoque, débito automático na entrega de pedidos, entrada manual e importação em massa |
+| **Contratos & Licenças** | Vencimento, renovação manual (com escolha de período) e renovação automática, alertas |
+| **Manutenções** | Registro de OS de impressoras, técnico responsável, histórico |
+| **Hosts de Rede** | Descoberta automática via scanner Python (ARP), reconciliação com o inventário |
+| **Relatórios** | Um hub com relatório dedicado por módulo, gráficos e exportação em Excel/CSV própria |
+| **Portal do Colaborador** | Formulário público (sem login) para abrir chamados e solicitar suprimentos, com acompanhamento por código |
 
 ---
 
-## Estratégia WhatsApp (IMPORTANTE)
+## Instalação
 
-### Mensagem padrão para o grupo
-Cole este texto na descrição do grupo e fixe como mensagem:
-
+### 1. Banco de dados
+Crie um banco MySQL 8 e rode, nesta ordem:
+```bash
+mysql -u usuario -p nome_do_banco < migrations.sql
+mysql -u usuario -p nome_do_banco < missing_tables.sql
 ```
-🖥️ SUPORTE DE TI
-Para abrir um chamado, acesse:
-👉 https://seusite.com.br/ti/abrir.php
+Tabelas adicionais (`hosts_rede`, `estoque_movimentos`, `contratos_renovacoes` etc.) são criadas automaticamente pelas próprias páginas no primeiro uso.
 
-Descreva o problema no formulário.
-Não envie mensagens aqui — use o link!
+### 2. Configuração
+```bash
+cp config.local.php.example config.local.php
 ```
+Edite `config.local.php` com os dados reais do banco, URL da aplicação e (opcional) a `GEMINI_API_KEY`. Esse arquivo **nunca** deve ser commitado — já está no `.gitignore`.
 
-### Auto-resposta WhatsApp Business
-Configure no WhatsApp Business:
-1. **Mensagem de ausência / auto-resposta:**
+### 3. Instalação inicial (usuário admin)
+Acesse `https://seudominio.com.br/setup.php?token=helpti2026` — troque o token no próprio arquivo antes de subir para produção.
+
+**⚠️ Delete `setup.php` do servidor imediatamente após rodar.**
+
+### 4. Crons obrigatórios
+```cron
+* * * * *      php /caminho/cron_email.php      # fila de e-mail (notificações, alertas)
+*/30 * * * *   php /caminho/cron_sla.php        # verifica SLA vencido
+0 */4 * * *    php /caminho/snmp_coletar.php    # coleta páginas/toner das impressoras
+0 6 * * *      php /caminho/cron_scanner.php    # descoberta de hosts de rede (roda o scanner_rede.py)
 ```
-Olá! Para suporte de T.I., abra seu chamado em:
-🔗 https://seusite.com.br/ti/abrir.php
+Sem esses crons o sistema funciona, mas perde e-mails, alertas de SLA, histórico de páginas/toner e a sincronização automática de hosts.
 
-Preencha: seu nome, setor e descrição do problema.
-Nossa equipe responderá em breve!
-```
-
-### QR Code para os setores
-1. Acesse https://qr-code-generator.com (gratuito)
-2. Gere o QR para `https://seusite.com.br/ti/abrir.php`
-3. Imprima e cole na parede de cada setor com o texto:
-   **"TI COM PROBLEMA? Escaneie e abra seu chamado"**
+### 5. Acesso
+- **Painel (equipe de TI):** `https://seudominio.com.br/`
+- **Portal público (colaboradores):** `https://seudominio.com.br/portal.php`
 
 ---
 
 ## Perfis de acesso
 
 | Perfil | Acesso |
-|--------|--------|
-| **tecnico** | Dashboard, chamados, criar/editar chamados |
-| **gestora** | Tudo do técnico + relatórios completos |
-| **admin** | Tudo + gerenciamento de usuários |
+|---|---|
+| **técnico** | Dashboard, chamados, impressoras, suprimentos (uso do dia a dia) |
+| **gestora** | Tudo do técnico + relatórios, contratos, inventário completo |
+| **admin** | Tudo + usuários, setores, ferramentas de TI (scanner, coleta SNMP manual) |
 
 ---
 
-## Arquivos do sistema
+## Divulgação do portal público
+
+Sugestão de texto para grupo de WhatsApp / mural dos setores:
 
 ```
-ti/
-├── db.php          ← CONFIGURAR antes de subir
-├── install.php     ← Executar UMA vez, depois DELETAR
-├── index.php       ← Redireciona login/dashboard
-├── login.php       ← Acesso da equipe TI
-├── logout.php
-├── abrir.php       ← LINK PÚBLICO (WhatsApp/QR Code)
-├── dashboard.php   ← Painel principal
-├── chamados.php    ← Lista com filtros
-├── chamado.php     ← Visualizar/editar chamado
-├── novo_chamado.php← Técnico cria manualmente
-├── relatorios.php  ← Relatórios para gestão
-├── usuarios.php    ← CRUD de usuários (admin)
-└── layout.php      ← Template compartilhado
+🖥️ SUPORTE DE TI
+Para abrir um chamado ou pedir suprimento, acesse:
+👉 https://seudominio.com.br/portal.php
+
+Preencha o formulário — sem necessidade de login.
 ```
+
+---
+
+## Stack
+
+- **Backend:** PHP 8.3, PDO/MySQL, sem framework
+- **Frontend:** Bootstrap 5, Chart.js, Bootstrap Icons
+- **Rede:** Python 3 (`scanner_rede.py`) para descoberta ARP, `snmpget` (net-snmp) para coleta de impressoras
+- **Exportação:** SimpleXLSXGen para planilhas Excel
+
+---
+
+by **PageUp Sistemas**

@@ -111,6 +111,18 @@ $f_status = $_GET['status'] ?? '';
 $f_setor  = $_GET['setor']  ?? '';
 $f_q      = trim($_GET['q'] ?? '');
 
+// Ordenação
+$ordenacoes = [
+    'recentes'  => 'criado_em DESC',
+    'nome_asc'  => 'marca ASC, modelo ASC',
+    'nome_desc' => 'marca DESC, modelo DESC',
+    'setor_asc' => 'setor ASC',
+    'status'    => "FIELD(status,'Em Uso','Disponível','Em Manutenção','Descartado')",
+    'garantia'  => 'garantia_ate IS NULL, garantia_ate ASC',
+];
+$f_ordenar = isset($ordenacoes[$_GET['ordenar'] ?? '']) ? $_GET['ordenar'] : 'recentes';
+$order_by  = $ordenacoes[$f_ordenar];
+
 $where = ['1=1']; $params = [];
 if ($f_tipo)   { $where[] = 'tipo=?';   $params[] = $f_tipo; }
 if ($f_status) { $where[] = 'status=?'; $params[] = $f_status; }
@@ -129,7 +141,7 @@ $st_count = $pdo->prepare($sql_count); $st_count->execute($params);
 $total_itens = (int)$st_count->fetchColumn();
 $total_pags  = (int)ceil($total_itens / $por_pag);
 
-$sql = "SELECT * FROM inventario WHERE " . implode(' AND ', $where) . " ORDER BY criado_em DESC LIMIT $por_pag OFFSET $offset";
+$sql = "SELECT * FROM inventario WHERE " . implode(' AND ', $where) . " ORDER BY $order_by LIMIT $por_pag OFFSET $offset";
 $st  = $pdo->prepare($sql); $st->execute($params);
 $itens = $st->fetchAll();
 
@@ -400,26 +412,37 @@ layoutHeader('Inventário TI', 'inventario');
 
   <!-- Filtros -->
   <form method="get" class="card card-body py-2">
-    <div class="row g-2 align-items-end">
-      <div class="col-sm-3"><input type="text" name="q" class="form-control form-control-sm" placeholder="Marca, modelo, série, responsável…" value="<?= h($f_q) ?>"></div>
-      <div class="col-sm-2">
+    <div class="row g-2 align-items-center">
+      <div class="col"><input type="text" name="q" class="form-control form-control-sm" placeholder="Marca, modelo, série, responsável…" value="<?= h($f_q) ?>"></div>
+      <div class="col-6 col-md-auto">
         <select name="tipo" class="form-select form-select-sm">
           <option value="">Todos os tipos</option>
           <?php foreach($tipos as $t): ?><option <?= $f_tipo===$t?'selected':'' ?>><?=$t?></option><?php endforeach; ?>
         </select>
       </div>
-      <div class="col-sm-2">
+      <div class="col-6 col-md-auto">
         <select name="status" class="form-select form-select-sm">
           <option value="">Todos os status</option>
           <?php foreach($statuses as $s): ?><option <?= $f_status===$s?'selected':'' ?>><?=$s?></option><?php endforeach; ?>
         </select>
       </div>
-      <div class="col-sm-3"><input type="text" name="setor" class="form-control form-control-sm" list="lst-setores2" placeholder="Setor" value="<?= h($f_setor) ?>">
+      <div class="col-6 col-md-auto">
+        <input type="text" name="setor" class="form-control form-control-sm" list="lst-setores2" placeholder="Setor" value="<?= h($f_setor) ?>" style="min-width:110px">
         <datalist id="lst-setores2"><?php foreach($setores as $s): ?><option value="<?=h($s)?>">  <?php endforeach; ?></datalist>
       </div>
-      <div class="col-sm-2 d-flex gap-1">
-        <button type="submit" class="btn btn-primary btn-sm flex-fill">Filtrar</button>
-        <a href="inventario.php" class="btn btn-outline-secondary btn-sm">✕</a>
+      <div class="col-6 col-md-auto">
+        <select name="ordenar" class="form-select form-select-sm" title="Ordenar por" style="min-width:150px">
+          <option value="recentes"  <?= $f_ordenar==='recentes' ?'selected':'' ?>>↕ Mais recentes</option>
+          <option value="nome_asc"  <?= $f_ordenar==='nome_asc' ?'selected':'' ?>>↕ Nome (A-Z)</option>
+          <option value="nome_desc" <?= $f_ordenar==='nome_desc'?'selected':'' ?>>↕ Nome (Z-A)</option>
+          <option value="setor_asc" <?= $f_ordenar==='setor_asc'?'selected':'' ?>>↕ Setor</option>
+          <option value="status"    <?= $f_ordenar==='status'   ?'selected':'' ?>>↕ Status</option>
+          <option value="garantia"  <?= $f_ordenar==='garantia' ?'selected':'' ?>>↕ Garantia</option>
+        </select>
+      </div>
+      <div class="col-auto d-flex gap-1">
+        <button type="submit" class="btn btn-primary btn-sm" title="Filtrar"><i class="bi bi-search"></i></button>
+        <a href="inventario.php" class="btn btn-outline-secondary btn-sm" title="Limpar filtros"><i class="bi bi-x-lg"></i></a>
       </div>
     </div>
   </form>

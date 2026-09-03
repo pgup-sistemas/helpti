@@ -1,18 +1,26 @@
 <?php
-// Endpoint público — retorna apenas status e atualizado_em de um chamado pelo número
+// Endpoint público — retorna apenas status/atualizado_em de um chamado pelo número.
+// Sem PII. Usado pelo auto-polling do portal.
 require 'db.php';
 
 header('Content-Type: application/json');
 header('Cache-Control: no-store');
 
+if (!rateLimit('status_chamado_' . clientIp(), 60, 600)) {
+    http_response_code(429);
+    echo json_encode(['error' => 'rate_limited']);
+    exit;
+}
+
 $numero = strtoupper(trim($_GET['numero'] ?? ''));
-if (!preg_match('/^CHM-[A-Z0-9]{6}$/', $numero)) {
+// Formato real: CHM-2026-00001
+if (!preg_match('/^CHM-\d{4}-\d{5}$/', $numero)) {
     http_response_code(400);
     echo json_encode(['error' => 'invalid']);
     exit;
 }
 
-$st = db()->prepare("SELECT status, atualizado_em FROM chamados WHERE numero=?");
+$st = db()->prepare("SELECT status, atualizado_em FROM chamados WHERE numero = ? AND deleted_at IS NULL");
 $st->execute([$numero]);
 $row = $st->fetch();
 
@@ -23,6 +31,6 @@ if (!$row) {
 }
 
 echo json_encode([
-    'status'       => $row['status'],
+    'status'        => $row['status'],
     'atualizado_em' => $row['atualizado_em'],
 ]);

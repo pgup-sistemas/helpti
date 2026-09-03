@@ -3,6 +3,7 @@
  * HelpTI — Funções compartilhadas entre impressoras.php e relatorio_impressoras.php
  * Evita duplicação e mantém as faixas de toner/status consistentes nas duas telas.
  */
+if (!defined('HELPTI_BOOT')) { http_response_code(403); exit('Acesso negado.'); }
 
 // ── Badge de status da impressora (Ativa / Em Manutenção / Inativa) ──
 function badgeStatusImpressora(string $s): string {

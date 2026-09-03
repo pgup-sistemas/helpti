@@ -7,6 +7,9 @@ $pdo = db();
 $u = usuario();
 $itens = [];
 
+// Endpoint polado a cada 60s — nunca deve derrubar o painel se uma query falhar.
+try {
+
 // Chamados atribuídos a mim, ainda não iniciados (assinalado e esquecido)
 $meus_novos = $pdo->prepare("
     SELECT id, numero, setor, descricao
@@ -262,6 +265,11 @@ if ($tabela_snap) {
             'label' => 'Verificar',
         ];
     }
+}
+
+} catch (Throwable $e) {
+    logApp('warn', 'notificacoes_falha', ['msg' => $e->getMessage()]);
+    // devolve o que já montou até aqui
 }
 
 echo json_encode(['total' => count($itens), 'itens' => $itens]);

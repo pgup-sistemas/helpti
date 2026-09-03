@@ -9,25 +9,22 @@ if (usuario()) { header('Location: dashboard.php'); exit; }
 $msg   = '';
 $erro  = '';
 $pdo   = db();
-
-// Cria tabela de resets se não existir
-$pdo->exec("CREATE TABLE IF NOT EXISTS password_resets (
-    id        INT AUTO_INCREMENT PRIMARY KEY,
-    email     VARCHAR(100) NOT NULL,
-    token     VARCHAR(64)  NOT NULL UNIQUE,
-    criado_em DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    usado     TINYINT      NOT NULL DEFAULT 0,
-    INDEX idx_token (token),
-    INDEX idx_email (email)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+// Schema de password_resets em database/migrations/ — sem DDL em runtime.
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     csrfVerify();
     $email = strtolower(trim($_POST['email'] ?? ''));
 
-    $st = $pdo->prepare("SELECT id, nome FROM usuarios WHERE email=? AND ativo=1");
-    $st->execute([$email]);
-    $u = $st->fetch();
+    // Rate limit: por IP e por e-mail alvo (impede e-mail bombing) — P1-8
+    $limiteOk = rateLimit('reset_ip_' . clientIp(), 5, 1800)
+             && rateLimit('reset_mail_' . substr(hash('sha256', $email), 0, 32), 3, 1800);
+
+    $u = null;
+    if ($limiteOk && filter_var($email, FILTER_VALIDATE_EMAIL)) {
+        $st = $pdo->prepare("SELECT id, nome FROM usuarios WHERE email=? AND ativo=1");
+        $st->execute([$email]);
+        $u = $st->fetch();
+    }
 
     if ($u) {
         // Invalida tokens antigos

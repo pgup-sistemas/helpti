@@ -13,6 +13,8 @@
 
 define('CLI_RUN', true);
 require __DIR__ . '/db.php';
+require __DIR__ . '/bin/lib_cron.php';
+cron_guard('scanner');                    // CLI + lock exclusivo (P2-2)
 $pdo = db();
 
 $json_file = __DIR__ . '/scan_ultimo.json';
@@ -21,7 +23,13 @@ $json_file = __DIR__ . '/scan_ultimo.json';
 $modo_scanner = false;
 if (!file_exists($json_file) || (isset($argv[1]) && $argv[1] === '--scan')) {
     echo "[" . date('Y-m-d H:i:s') . "] Executando scanner_rede.py...\n";
-    passthru('cd ' . escapeshellarg(__DIR__) . ' && python3 scanner_rede.py 2>&1');
+    $rc = 0;
+    passthru('cd ' . escapeshellarg(__DIR__) . ' && python3 scanner_rede.py 2>&1', $rc);
+    if ($rc !== 0) {
+        cron_finish('scanner', false, "scanner_rede.py saiu com codigo {$rc}");
+        echo "[" . date('Y-m-d H:i:s') . "] ERRO: scanner_rede.py falhou (rc={$rc}).\n";
+        exit(1);
+    }
     $modo_scanner = true;
 }
 
@@ -30,39 +38,27 @@ if (!file_exists($json_file)) {
     exit(1);
 }
 
-$json = json_decode(file_get_contents($json_file), true);
-if (!$json || empty($json['hosts'])) {
-    echo "[" . date('Y-m-d H:i:s') . "] ERRO: JSON inválido ou vazio.\n";
+$conteudo = file_get_contents($json_file);
+$json = json_decode($conteudo, true);
+if (!is_array($json) || json_last_error() !== JSON_ERROR_NONE || empty($json['hosts'])) {
+    // JSON truncado/parcial (escrita concorrente ou scanner interrompido) — não reconcilia. (P2-2)
+    cron_finish('scanner', false, 'scan_ultimo.json inválido, truncado ou vazio');
+    echo "[" . date('Y-m-d H:i:s') . "] ERRO: JSON inválido, truncado ou vazio — reconciliação abortada.\n";
     exit(1);
 }
 
-$escaneado_em = $json['escaneado_em'];
+$escaneado_em = $json['escaneado_em'] ?? date('c');
 $hosts        = $json['hosts'];
-echo "[" . date('Y-m-d H:i:s') . "] Reconciliando " . count($hosts) . " host(s) escaneados em {$escaneado_em}\n";
 
-// ── Garante que tabela existe ─────────────────────────────
-$pdo->exec("CREATE TABLE IF NOT EXISTS `hosts_rede` (
-  `id` int NOT NULL AUTO_INCREMENT,
-  `ip` varchar(45) NOT NULL,
-  `mac_address` varchar(17) NOT NULL,
-  `hostname` varchar(255) DEFAULT NULL,
-  `fabricante` varchar(100) DEFAULT NULL,
-  `tipo` varchar(50) DEFAULT NULL,
-  `marca` varchar(60) DEFAULT NULL,
-  `portas` text DEFAULT NULL,
-  `rede` varchar(20) DEFAULT NULL,
-  `setor` varchar(60) DEFAULT NULL,
-  `inventario_id` int DEFAULT NULL,
-  `primeiro_visto` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `ultimo_visto` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  `online` tinyint(1) NOT NULL DEFAULT 1,
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_mac` (`mac_address`),
-  KEY `idx_ip` (`ip`),
-  KEY `idx_tipo` (`tipo`),
-  KEY `fk_hosts_inventario` (`inventario_id`),
-  CONSTRAINT `fk_hosts_inventario` FOREIGN KEY (`inventario_id`) REFERENCES `inventario` (`id`) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci");
+// Segurança: só reconcilia se o scan é recente (< 6h). Evita marcar tudo offline
+// por causa de um JSON velho deixado no disco.
+if (strtotime($escaneado_em) < time() - 6 * 3600) {
+    cron_finish('scanner', false, "scan muito antigo ({$escaneado_em})");
+    echo "[" . date('Y-m-d H:i:s') . "] AVISO: scan de {$escaneado_em} é antigo demais — abortado.\n";
+    exit(1);
+}
+echo "[" . date('Y-m-d H:i:s') . "] Reconciliando " . count($hosts) . " host(s) escaneados em {$escaneado_em}\n";
+// Schema de hosts_rede em database/migrations/ — sem DDL em runtime.
 
 // ── Extrai IP/MAC de observacoes para registros sem IP ────
 $sem_ip = $pdo->query(
@@ -169,3 +165,5 @@ echo "  Vinculados inv.: {$vinculados}\n";
 echo "  Offline agora  : {$offline}\n";
 if ($atualizados_status > 0)
     echo "  Status inv.    : {$atualizados_status} atualizados Disponível → Em Uso\n";
+
+cron_finish('scanner', true, "novos={$novos} atualizados={$atualizados} offline={$offline}");

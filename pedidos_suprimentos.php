@@ -14,29 +14,46 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $pedido_id = (int)($_POST['pedido_id'] ?? 0);
 
     if ($pedido_id > 0) {
+        // Transições idempotentes: só mudam se o pedido está no estado esperado. (P1-2)
         if ($action === 'aprovar') {
-            $stmt = $pdo->prepare("UPDATE pedidos_suprimentos SET status = 'Aprovado' WHERE id = ?");
+            $stmt = $pdo->prepare("UPDATE pedidos_suprimentos SET status = 'Aprovado' WHERE id = ? AND status = 'Pendente'");
             $stmt->execute([$pedido_id]);
-            flash("Pedido aprovado e enviado para separação!");
+            flash($stmt->rowCount() === 1 ? "Pedido aprovado e enviado para separação!" : "Este pedido não está mais pendente.", $stmt->rowCount() === 1 ? 'success' : 'danger');
             header("Location: pedidos_suprimentos.php");
             exit;
         }
-        
+
         if ($action === 'entregar') {
             $obs_entrega = trim($_POST['observacoes_entrega'] ?? '');
-            $stmt = $pdo->prepare("UPDATE pedidos_suprimentos SET status = 'Entregue', observacoes_entrega = ? WHERE id = ?");
-            $stmt->execute([$obs_entrega ?: 'Entregue com sucesso.', $pedido_id]);
-            // Sincroniza estoque: debita a quantidade de cada item entregue
-            estoque_debitar_pedido($pdo, $pedido_id, $u['id'] ?? null);
-            flash("Suprimento marcado como entregue! Estoque atualizado.");
+            try {
+                $pdo->beginTransaction();
+                $stmt = $pdo->prepare("UPDATE pedidos_suprimentos
+                                       SET status = 'Entregue', observacoes_entrega = ?
+                                       WHERE id = ? AND status IN ('Pendente','Aprovado')");
+                $stmt->execute([$obs_entrega ?: 'Entregue com sucesso.', $pedido_id]);
+                if ($stmt->rowCount() === 1) {
+                    // Debita o estoque de cada item DENTRO da mesma transação.
+                    estoque_debitar_pedido($pdo, $pedido_id, $u['id'] ?? null);
+                    $pdo->commit();
+                    auditLog('pedido_entregue', 'pedidos_suprimentos', $pedido_id);
+                    flash("Suprimento marcado como entregue! Estoque atualizado.");
+                } else {
+                    $pdo->rollBack();
+                    flash("Este pedido já foi entregue ou cancelado.", "danger");
+                }
+            } catch (Throwable $e) {
+                if ($pdo->inTransaction()) $pdo->rollBack();
+                logApp('error', 'entrega_pedido_falhou', ['pedido' => $pedido_id, 'msg' => $e->getMessage()]);
+                flash("Erro ao registrar entrega: " . $e->getMessage(), "danger");
+            }
             header("Location: pedidos_suprimentos.php");
             exit;
         }
 
         if ($action === 'cancelar') {
-            $stmt = $pdo->prepare("UPDATE pedidos_suprimentos SET status = 'Cancelado' WHERE id = ?");
+            $stmt = $pdo->prepare("UPDATE pedidos_suprimentos SET status = 'Cancelado' WHERE id = ? AND status IN ('Pendente','Aprovado')");
             $stmt->execute([$pedido_id]);
-            flash("Pedido cancelado.", "danger");
+            flash($stmt->rowCount() === 1 ? "Pedido cancelado." : "Não é possível cancelar este pedido.", "danger");
             header("Location: pedidos_suprimentos.php");
             exit;
         }

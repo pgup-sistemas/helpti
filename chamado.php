@@ -9,7 +9,7 @@ $u   = usuario();
 $id  = (int)($_GET['id'] ?? 0);
 
 $c = $pdo->prepare("SELECT c.*, u.nome AS resp_nome FROM chamados c
-    LEFT JOIN usuarios u ON u.id=c.responsavel_id WHERE c.id=?");
+    LEFT JOIN usuarios u ON u.id=c.responsavel_id WHERE c.id=? AND c.deleted_at IS NULL");
 $c->execute([$id]);
 $chamado = $c->fetch();
 if (!$chamado) { header('Location: chamados.php'); exit; }
@@ -55,7 +55,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         auditLog('chamado_atualizado', 'chamados', $id, $acao);
 
         // Notificações
-        $dadosChamado = ['id'=>$id,'numero'=>$chamado['numero'],'setor'=>$chamado['setor'],'descricao'=>$chamado['descricao'],'solicitante'=>$chamado['solicitante']];
+        $dadosChamado = ['id'=>$id,'numero'=>$chamado['numero'],'setor'=>$chamado['setor'],'descricao'=>$chamado['descricao'],'solicitante'=>$chamado['solicitante'],'avaliacao_token'=>$chamado['avaliacao_token'] ?? null];
 
         // Novo responsável atribuído
         if ($resp && $resp != $respAnterior) {

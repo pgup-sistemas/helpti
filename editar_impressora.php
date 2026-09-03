@@ -68,7 +68,7 @@ layoutHeader('Editar Impressora', 'impressoras');
   <h1 class="page-title"><i class="bi bi-pencil-square me-2 text-primary"></i>Editar Impressora</h1>
 </div>
 
-<div class="card" style="max-width:680px">
+<div class="card">
   <div class="card-header">Ficha de Atualização de Equipamento</div>
   <div class="card-body">
     <?php if ($erros): ?>

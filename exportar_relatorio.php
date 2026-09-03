@@ -82,20 +82,20 @@ if (count($sheet7)===1) $sheet7[] = ['Nenhum consumo neste mês.',''];
 
 // ── 8. Inventário de TI (snapshot atual) ──────────────────
 $rows8 = $pdo->query("SELECT tipo,marca,modelo,numero_serie,patrimonio,setor,status,
-    responsavel,data_aquisicao,garantia_ate,valor,observacoes
+    responsavel_nome,data_aquisicao,garantia_ate,valor,observacoes
     FROM inventario ORDER BY tipo,marca,modelo")->fetchAll();
 $sheet8 = [[bold('Tipo'),bold('Marca'),bold('Modelo'),bold('S/N'),bold('Patrimônio'),bold('Setor'),bold('Status'),bold('Responsável'),bold('Aquisição'),bold('Garantia até'),bold('Valor (R$)'),bold('Observações')]];
 foreach ($rows8 as $r)
-    $sheet8[] = [$r['tipo'],$r['marca'],$r['modelo'],$r['numero_serie']?:'—',$r['patrimonio']?:'—',$r['setor'],$r['status'],$r['responsavel']?:'—',d($r['data_aquisicao']),d($r['garantia_ate']),$r['valor']?number_format($r['valor'],2,',','.'):'',$r['observacoes']];
+    $sheet8[] = [$r['tipo'],$r['marca'],$r['modelo'],$r['numero_serie']?:'—',$r['patrimonio']?:'—',$r['setor'],$r['status'],$r['responsavel_nome']?:'—',d($r['data_aquisicao']),d($r['garantia_ate']),$r['valor']?number_format($r['valor'],2,',','.'):'',$r['observacoes']];
 if (count($sheet8)===1) $sheet8[] = ['Nenhum equipamento cadastrado.','','','','','','','','','','',''];
 
 // ── 9. Contratos & Licenças (snapshot atual) ───────────────
-$rows9 = $pdo->query("SELECT nome,tipo,fornecedor,numero_contrato,data_inicio,data_vencimento,valor_mensal,valor_total,status,renovacao_auto,alerta_dias,observacoes
+$rows9 = $pdo->query("SELECT nome,tipo,fornecedor,numero_contrato,data_inicio,data_vencimento,valor,periodicidade,status,renovacao_auto,alerta_dias,observacoes
     FROM contratos ORDER BY data_vencimento ASC")->fetchAll();
-$sheet9 = [[bold('Nome'),bold('Tipo'),bold('Fornecedor'),bold('Nº Contrato'),bold('Início'),bold('Vencimento'),bold('Valor Mensal'),bold('Valor Total'),bold('Status'),bold('Renovação Auto'),bold('Alerta (dias)'),bold('Observações')]];
+$sheet9 = [[bold('Nome'),bold('Tipo'),bold('Fornecedor'),bold('Nº Contrato'),bold('Início'),bold('Vencimento'),bold('Valor'),bold('Periodicidade'),bold('Status'),bold('Renovação Auto'),bold('Alerta (dias)'),bold('Observações')]];
 foreach ($rows9 as $r)
     $sheet9[] = [$r['nome'],$r['tipo'],$r['fornecedor'],$r['numero_contrato']?:'—',d($r['data_inicio']),d($r['data_vencimento']),
-        $r['valor_mensal']?number_format($r['valor_mensal'],2,',','.'):'',$r['valor_total']?number_format($r['valor_total'],2,',','.'):'',$r['status'],$r['renovacao_auto']?'Sim':'Não',$r['alerta_dias'],$r['observacoes']];
+        $r['valor']!==null?number_format((float)$r['valor'],2,',','.'):'',$r['periodicidade'],$r['status'],$r['renovacao_auto']?'Sim':'Não',$r['alerta_dias'],$r['observacoes']];
 if (count($sheet9)===1) $sheet9[] = ['Nenhum contrato cadastrado.','','','','','','','','','','',''];
 
 // ── 10. Termos de uso ──────────────────────────────────────

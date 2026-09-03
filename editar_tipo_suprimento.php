@@ -49,11 +49,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 layoutHeader('Editar Insumo', 'tipos_suprimentos');
 ?>
 
+<?php breadcrumb([['label'=>'Tipos de Suprimentos','href'=>'tipos_suprimentos.php'],['label'=>'Editar Insumo']]); ?>
 <div class="page-header">
   <h1 class="page-title"><i class="bi bi-pencil-square me-2 text-primary"></i>Editar Insumo</h1>
 </div>
 
-<div class="card" style="max-width: 600px;">
+<div class="card">
   <div class="card-header">Dados do Suprimento</div>
   <div class="card-body p-4">
     <?php if ($erros): ?>

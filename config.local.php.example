@@ -14,4 +14,10 @@ return [
     'APP_EMAIL_REPLY'=> 'noreply@seudominio.com.br',
 
     'DEBUG_MODE'     => false,
+
+    // Opcional — habilita "Classificar com IA" no portal público
+    'GEMINI_API_KEY' => '',
+
+    // Token para o endpoint de monitoramento health.php  (gere: openssl rand -hex 24)
+    'HEALTH_TOKEN'   => '',
 ];

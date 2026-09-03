@@ -15,10 +15,16 @@ $action = $_POST['action'] ?? '';
 // Verificação CSRF em todas as ações
 csrfVerify();
 
-// classificar: acessível pelo portal público (sem login)
+// classificar: acessível pelo portal público (sem login) — mas com rate limit por IP (P1-5)
 // sugerir_resposta e resumir: só para técnicos autenticados
 if ($action !== 'classificar') {
     requireLogin();
+} else {
+    if (!rateLimit('ia_classificar_' . clientIp(), 15, 3600)) {
+        http_response_code(429);
+        echo json_encode(['ok' => false, 'erro' => 'Muitas solicitações à IA. Tente novamente mais tarde.']);
+        exit;
+    }
 }
 
 if (!GEMINI_API_KEY) {

@@ -183,16 +183,16 @@ layoutHeader('Painel de Impressoras', 'impressoras');
     <?php endif; ?>
   </div>
   <div class="table-responsive">
-    <table class="table table-hover mb-0">
+    <table class="table table-hover mb-0 table-sortable">
       <thead>
         <tr>
-          <th>Nome</th>
-          <th>Marca / Modelo</th>
-          <th>Setor</th>
-          <th>Endereço IP</th>
-          <th>Modelo Toner</th>
+          <th data-sort>Nome</th>
+          <th data-sort>Marca / Modelo</th>
+          <th data-sort>Setor</th>
+          <th data-sort>Endereço IP</th>
+          <th data-sort>Modelo Toner</th>
           <th>Toner / SNMP</th>
-          <th>Status</th>
+          <th data-sort>Status</th>
           <th>Ações</th>
         </tr>
       </thead>
@@ -211,7 +211,7 @@ layoutHeader('Painel de Impressoras', 'impressoras');
               <?php if ($imp['ip']): ?>
                 <a href="http://<?= h($imp['ip']) ?>" target="_blank" class="badge bg-light text-dark border text-decoration-none" title="Acessar página web da impressora">
                   <i class="bi bi-link-45deg me-1"></i><?= h($imp['ip']) ?>
-                </a>
+                </a><?= copyBtn($imp['ip']) ?>
               <?php else: ?>
                 <span class="text-muted">—</span>
               <?php endif; ?>

@@ -15,18 +15,25 @@ $subaba  = $_GET['subaba'] ?? 'abrir';   // abrir | acompanhar (para ti) | pedir
 // ───────────────────────────────────────────────
 //  LÓGICA: ABRIR CHAMADO (POST)
 // ───────────────────────────────────────────────
-$chamado_sucesso = $_GET['chamado_sucesso'] ?? null;
+$chamado_sucesso       = $_GET['chamado_sucesso'] ?? null;
+$chamado_sucesso_token = trim($_GET['t'] ?? '');
 $chamado_erros   = [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_form'] ?? '') === 'abrir_chamado') {
+    csrfVerify();                                             // P0-3: valida token também no portal
+    if (!rateLimit('portal_chamado_' . clientIp(), 5, 600)) { // P1-8: 5 chamados / 10 min por IP
+        $chamado_erros[] = 'Muitas solicitações em pouco tempo. Aguarde alguns minutos.';
+    }
     $nome     = trim($_POST['nome'] ?? '');
     $telefone = trim($_POST['telefone'] ?? '');
     $setor    = trim($_POST['setor'] ?? '');
     $desc     = trim($_POST['descricao'] ?? '');
 
     if (!$nome)  $chamado_erros[] = 'Informe seu nome.';
-    if (!$setor) $chamado_erros[] = 'Selecione o setor.';
+    // P0-3: setor precisa ser um valor conhecido — nunca texto livre (vetor de XSS armazenado)
+    if (!$setor || !in_array($setor, $SETORES, true)) $chamado_erros[] = 'Selecione um setor válido da lista.';
     if (!$desc || strlen($desc) < 5) $chamado_erros[] = 'Descreva o problema (mínimo 5 caracteres).';
+    if (mb_strlen($nome) > 100 || mb_strlen($desc) > 5000) $chamado_erros[] = 'Campos muito longos.';
 
     $uploaded_paths = [];
     if (!$chamado_erros && !empty($_FILES['imagens']['name'][0])) {
@@ -57,19 +64,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_form'] ?? '') === 'abrir_
         $numero       = gerarNumero();
         $semana       = getSemana(date('Y-m-d'));
         $imagens_json = !empty($uploaded_paths) ? json_encode($uploaded_paths) : null;
-        try {
-            $pdo->prepare("INSERT INTO chamados (numero,descricao,setor,solicitante,telefone_solicitante,semana,status,origem,imagens) VALUES (?,?,?,?,?,?,'Aberto','Formulário Web',?)")
-                ->execute([$numero,$desc,$setor,$nome,$telefone?:null,$semana,$imagens_json]);
-        } catch (PDOException $e) {
-            $pdo->prepare("INSERT INTO chamados (numero,descricao,setor,solicitante,semana,status,origem,imagens) VALUES (?,?,?,?,?,'Aberto','Formulário Web',?)")
-                ->execute([$numero,$desc,$setor,$nome,$semana,$imagens_json]);
-        }
+        $acompToken   = tokenOpaco();
+        $avalToken    = tokenOpaco();
+        $pdo->prepare("INSERT INTO chamados
+                (numero,descricao,setor,solicitante,telefone_solicitante,semana,status,origem,imagens,acompanhamento_token,avaliacao_token)
+             VALUES (?,?,?,?,?,?,'Aberto','Formulário Web',?,?,?)")
+            ->execute([$numero,$desc,$setor,$nome,$telefone?:null,$semana,$imagens_json,$acompToken,$avalToken]);
+
         // Notifica todos os técnicos/admins sobre chamado novo sem responsável
         $emails_ti = $pdo->query("SELECT email FROM usuarios WHERE ativo=1 AND perfil IN ('tecnico','admin','gestora')")->fetchAll(PDO::FETCH_COLUMN);
         foreach ($emails_ti as $eti) {
             notificarChamado('aberto', ['numero'=>$numero,'setor'=>$setor,'descricao'=>$desc,'solicitante'=>$nome], $eti);
         }
-        header("Location: portal.php?aba=ti&subaba=abrir&chamado_sucesso=" . urlencode($numero));
+        header("Location: portal.php?aba=ti&subaba=abrir&chamado_sucesso=" . urlencode($numero) . "&t=" . urlencode($acompToken));
         exit;
     }
     $aba = 'ti'; $subaba = 'abrir';
@@ -78,69 +85,69 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_form'] ?? '') === 'abrir_
 // ───────────────────────────────────────────────
 //  LÓGICA: ACOMPANHAR CHAMADO
 // ───────────────────────────────────────────────
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['avaliar_chamado_id'])) {
-    $cid  = (int)$_POST['avaliar_chamado_id'];
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['avaliar_token'])) {
+    csrfVerify();
+    $atok = trim($_POST['avaliar_token'] ?? '');
     $nota = (int)($_POST['nota'] ?? 0);
-    $comt = trim($_POST['comentario'] ?? '');
-    if ($cid && $nota >= 1 && $nota <= 5) {
-        // Só permite avaliar chamados que existem e estão Concluídos
-        $chk = $pdo->prepare("SELECT id FROM chamados WHERE id=? AND status='Concluído'");
-        $chk->execute([$cid]);
-        if ($chk->fetch()) {
-            $pdo->prepare("INSERT INTO avaliacoes (chamado_id,nota,comentario) VALUES (?,?,?) ON DUPLICATE KEY UPDATE nota=VALUES(nota),comentario=VALUES(comentario)")
+    $comt = mb_substr(trim($_POST['comentario'] ?? ''), 0, 2000);
+    if ($atok !== '' && $nota >= 1 && $nota <= 5 && rateLimit('aval_' . clientIp(), 10, 3600)) {
+        // Chamado identificado pelo token opaco de avaliação, e precisa estar Concluído (P1-1)
+        $chk = $pdo->prepare("SELECT id FROM chamados WHERE avaliacao_token=? AND status='Concluído' AND deleted_at IS NULL");
+        $chk->execute([$atok]);
+        $cid = $chk->fetchColumn();
+        if ($cid) {
+            // Regra única: 1 avaliação imutável por chamado (P1-7). INSERT IGNORE não sobrescreve.
+            $pdo->prepare("INSERT IGNORE INTO avaliacoes (chamado_id,nota,comentario) VALUES (?,?,?)")
                 ->execute([$cid,$nota,$comt?:null]);
         }
     }
 }
 
-$chamado_detalhe = null;
-$historico       = [];
+// ── ACOMPANHAR CHAMADO ────────────────────────────────────────────────
+// P0-4: portal público NÃO lista chamados nem permite busca por nome.
+// Rastreamento é por número + token de acompanhamento (link enviado ao abrir).
+// Sem token: card mínimo de status (sem PII). Com token válido: detalhe completo.
+$chamado_detalhe    = null;
+$historico          = [];
 $chamado_erro_busca = null;
+$acesso_completo    = false;
 $numero_chamado  = isset($_GET['numero_chamado']) ? strtoupper(trim($_GET['numero_chamado'])) : '';
+$token_chamado   = trim($_GET['t'] ?? $_GET['token'] ?? '');
+$lista_chamados  = []; // mantido para compatibilidade de template — sempre vazio
 
 if ($numero_chamado) {
-    $st = $pdo->prepare("SELECT c.*,u.nome AS resp_nome FROM chamados c LEFT JOIN usuarios u ON u.id=c.responsavel_id WHERE c.numero=?");
-    $st->execute([$numero_chamado]);
-    $chamado_detalhe = $st->fetch();
-    if ($chamado_detalhe) {
-        $h_st = $pdo->prepare("SELECT h.*,u.nome AS usu FROM historico h LEFT JOIN usuarios u ON u.id=h.usuario_id WHERE h.chamado_id=? ORDER BY h.criado_em DESC");
-        $h_st->execute([$chamado_detalhe['id']]);
-        $historico = $h_st->fetchAll();
+    if (!rateLimit('portal_track_' . clientIp(), 30, 600)) {
+        $chamado_erro_busca = "Muitas consultas. Aguarde alguns minutos.";
     } else {
-        $chamado_erro_busca = "Chamado '$numero_chamado' não encontrado.";
+        $st = $pdo->prepare("SELECT c.*, u.nome AS resp_nome
+                             FROM chamados c LEFT JOIN usuarios u ON u.id=c.responsavel_id
+                             WHERE c.numero=? AND c.deleted_at IS NULL");
+        $st->execute([$numero_chamado]);
+        $chamado_detalhe = $st->fetch();
+        if ($chamado_detalhe) {
+            $acesso_completo = $token_chamado !== ''
+                && !empty($chamado_detalhe['acompanhamento_token'])
+                && hash_equals($chamado_detalhe['acompanhamento_token'], $token_chamado);
+            if ($acesso_completo) {
+                $h_st = $pdo->prepare("SELECT h.*,u.nome AS usu FROM historico h
+                                       LEFT JOIN usuarios u ON u.id=h.usuario_id
+                                       WHERE h.chamado_id=? ORDER BY h.criado_em DESC");
+                $h_st->execute([$chamado_detalhe['id']]);
+                $historico = $h_st->fetchAll();
+            }
+        } else {
+            $chamado_erro_busca = "Chamado '$numero_chamado' não encontrado.";
+        }
     }
     $aba = 'ti'; $subaba = 'acompanhar';
 }
-
-// Filtros listagem chamados
-$fc_setor  = $_GET['fc_setor']  ?? '';
-$fc_nivel  = $_GET['fc_nivel']  ?? '';
-$fc_status = $_GET['fc_status'] ?? 'Ativos';
-$fc_busca  = trim($_GET['fc_busca'] ?? '');
-$fc_pagina = max(1,(int)($_GET['fc_pagina']??1));
-
-$wc = []; $pc = [];
-if ($fc_status==='Ativos')  { $wc[] = "c.status != 'Concluído'"; }
-elseif ($fc_status)         { $wc[] = "c.status=:status"; $pc['status']=$fc_status; }
-if ($fc_setor)              { $wc[] = "c.setor=:setor";  $pc['setor']=$fc_setor; }
-if ($fc_nivel)              { $wc[] = "c.nivel=:nivel";  $pc['nivel']=$fc_nivel; }
-if ($fc_busca)              { $b="%$fc_busca%"; $wc[] = "(c.solicitante LIKE :b1 OR c.numero LIKE :b2 OR c.descricao LIKE :b3)"; $pc['b1']=$b; $pc['b2']=$b; $pc['b3']=$b; }
-$wc_sql = $wc ? "WHERE ".implode(' AND ',$wc) : '';
-
-$fc_limite = 50;
-$fc_offset = ($fc_pagina-1)*$fc_limite;
-$fc_total  = $pdo->prepare("SELECT COUNT(*) FROM chamados c LEFT JOIN usuarios u ON u.id=c.responsavel_id $wc_sql");
-$fc_total->execute($pc); $fc_total_reg = $fc_total->fetchColumn();
-$fc_paginas = ceil($fc_total_reg/$fc_limite);
-
-$fc_st = $pdo->prepare("SELECT c.id,c.numero,c.setor,c.solicitante,c.nivel,c.status,c.criado_em,u.nome AS resp_nome FROM chamados c LEFT JOIN usuarios u ON u.id=c.responsavel_id $wc_sql ORDER BY c.criado_em DESC LIMIT $fc_limite OFFSET $fc_offset");
-$fc_st->execute($pc);
-$lista_chamados = $fc_st->fetchAll();
+$fc_paginas = 0;
 
 // ───────────────────────────────────────────────
 //  LÓGICA: PEDIDO DE SUPRIMENTOS (POST)
 // ───────────────────────────────────────────────
-$sup_sucesso = $_GET['sup_sucesso'] ?? null;
+$sup_sucesso       = $_GET['sup_sucesso'] ?? null;
+$sup_sucesso_token = trim($_GET['t'] ?? '');
 $sup_erros   = [];
 $impressoras      = $pdo->query("SELECT id,nome,setor,modelo_toner FROM impressoras WHERE status='Ativa' ORDER BY nome")->fetchAll();
 $tipos_suprimentos= $pdo->query("SELECT id,nome FROM tipos_suprimentos WHERE ativo=1 ORDER BY nome")->fetchAll();
@@ -149,13 +156,17 @@ $quantidades_post = $_POST['quantidade'] ?? [1];
 $descricoes_post  = $_POST['descricao_livre'] ?? [''];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_form'] ?? '') === 'pedir_suprimento') {
+    csrfVerify();
+    if (!rateLimit('portal_sup_' . clientIp(), 5, 600)) {
+        $sup_erros[] = 'Muitas solicitações em pouco tempo. Aguarde alguns minutos.';
+    }
     $solicitante   = trim($_POST['solicitante'] ?? '');
     $setor_sup     = trim($_POST['setor'] ?? '');
     $impressora_id = $_POST['impressora_id'] ? (int)$_POST['impressora_id'] : null;
-    $observacoes   = trim($_POST['observacoes'] ?? '');
+    $observacoes   = mb_substr(trim($_POST['observacoes'] ?? ''), 0, 2000);
 
-    if (!$solicitante) $sup_erros[] = 'Informe seu nome completo.';
-    if (!$setor_sup)   $sup_erros[] = 'Selecione seu setor.';
+    if (!$solicitante || mb_strlen($solicitante) > 100) $sup_erros[] = 'Informe seu nome completo.';
+    if (!$setor_sup || !in_array($setor_sup, $SETORES, true)) $sup_erros[] = 'Selecione um setor válido da lista.';
     if (empty($tipos_ids_post) || (count($tipos_ids_post)===1 && empty($tipos_ids_post[0])))
         $sup_erros[] = 'Adicione pelo menos um insumo.';
 
@@ -172,20 +183,20 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_form'] ?? '') === 'pedir_
     if (!$sup_erros) {
         try {
             $pdo->beginTransaction();
-            db()->exec("UPDATE sequences SET value = LAST_INSERT_ID(value + 1) WHERE name = 'suprimentos'");
-            $seq_sup    = (int) db()->query("SELECT LAST_INSERT_ID()")->fetchColumn();
-            $numero_sup = 'SUP-' . date('Y') . '-' . str_pad($seq_sup, 5, '0', STR_PAD_LEFT);
-            $pdo->prepare("INSERT INTO pedidos_suprimentos (numero,impressora_id,setor,solicitante,status,observacoes) VALUES (?,?,?,?,'Pendente',?)")
-                ->execute([$numero_sup,$impressora_id,$setor_sup,$solicitante,$observacoes?:null]);
+            $numero_sup = gerarNumeroSuprimento();
+            $supToken   = tokenOpaco();
+            $pdo->prepare("INSERT INTO pedidos_suprimentos (numero,impressora_id,setor,solicitante,status,observacoes,acompanhamento_token) VALUES (?,?,?,?,'Pendente',?,?)")
+                ->execute([$numero_sup,$impressora_id,$setor_sup,$solicitante,$observacoes?:null,$supToken]);
             $pedido_id = $pdo->lastInsertId();
             $st_item = $pdo->prepare("INSERT INTO pedidos_suprimentos_itens (pedido_id,tipo_suprimento_id,descricao_livre,quantidade) VALUES (?,?,?,?)");
-            foreach ($itens_validos as $item) $st_item->execute([$pedido_id,$item['tipo_id'],$item['descricao'],$item['quantidade']]);
+            foreach ($itens_validos as $item) $st_item->execute([$pedido_id,$item['tipo_id'],$item['descricao'],min(50,max(1,(int)$item['quantidade']))]);
             $pdo->commit();
-            header("Location: portal.php?aba=sup&subaba=pedir&sup_sucesso=".urlencode($numero_sup));
+            header("Location: portal.php?aba=sup&subaba=pedir&sup_sucesso=".urlencode($numero_sup)."&t=".urlencode($supToken));
             exit;
-        } catch (Exception $e) {
-            $pdo->rollBack();
-            $sup_erros[] = "Erro ao registrar: " . $e->getMessage();
+        } catch (Throwable $e) {
+            if ($pdo->inTransaction()) $pdo->rollBack();
+            logApp('error', 'portal_pedido_falhou', ['msg' => $e->getMessage()]);
+            $sup_erros[] = "Não foi possível registrar o pedido. Tente novamente.";
         }
     }
     $aba = 'sup'; $subaba = 'pedir';
@@ -194,47 +205,39 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && ($_POST['_form'] ?? '') === 'pedir_
 // ───────────────────────────────────────────────
 //  LÓGICA: ACOMPANHAR SUPRIMENTOS
 // ───────────────────────────────────────────────
+// ── ACOMPANHAR SUPRIMENTOS ──────────────────────────────────────────
+// P0-4: sem listagem pública. Rastreio por número + token (link do pedido).
 $pedido_detalhe  = null;
 $itens_detalhe   = [];
 $sup_erro_busca  = null;
+$acesso_sup_completo = false;
 $numero_sup_busca = isset($_GET['numero_sup']) ? strtoupper(trim($_GET['numero_sup'])) : '';
+$token_sup        = trim($_GET['t'] ?? $_GET['token'] ?? '');
+$lista_pedidos    = [];
+$fs_paginas       = 0;
 
 if ($numero_sup_busca) {
-    $st = $pdo->prepare("SELECT s.*,i.nome AS impressora_nome FROM pedidos_suprimentos s LEFT JOIN impressoras i ON i.id=s.impressora_id WHERE s.numero=?");
-    $st->execute([$numero_sup_busca]);
-    $pedido_detalhe = $st->fetch();
-    if ($pedido_detalhe) {
-        $st2 = $pdo->prepare("SELECT pi.*,ts.nome AS tipo_nome FROM pedidos_suprimentos_itens pi LEFT JOIN tipos_suprimentos ts ON ts.id=pi.tipo_suprimento_id WHERE pi.pedido_id=?");
-        $st2->execute([$pedido_detalhe['id']]);
-        $itens_detalhe = $st2->fetchAll();
+    if (!rateLimit('portal_track_' . clientIp(), 30, 600)) {
+        $sup_erro_busca = "Muitas consultas. Aguarde alguns minutos.";
     } else {
-        $sup_erro_busca = "Pedido '$numero_sup_busca' não encontrado.";
+        $st = $pdo->prepare("SELECT s.*,i.nome AS impressora_nome FROM pedidos_suprimentos s LEFT JOIN impressoras i ON i.id=s.impressora_id WHERE s.numero=?");
+        $st->execute([$numero_sup_busca]);
+        $pedido_detalhe = $st->fetch();
+        if ($pedido_detalhe) {
+            $acesso_sup_completo = $token_sup !== ''
+                && !empty($pedido_detalhe['acompanhamento_token'])
+                && hash_equals($pedido_detalhe['acompanhamento_token'], $token_sup);
+            if ($acesso_sup_completo) {
+                $st2 = $pdo->prepare("SELECT pi.*,ts.nome AS tipo_nome FROM pedidos_suprimentos_itens pi LEFT JOIN tipos_suprimentos ts ON ts.id=pi.tipo_suprimento_id WHERE pi.pedido_id=?");
+                $st2->execute([$pedido_detalhe['id']]);
+                $itens_detalhe = $st2->fetchAll();
+            }
+        } else {
+            $sup_erro_busca = "Pedido '$numero_sup_busca' não encontrado.";
+        }
     }
     $aba = 'sup'; $subaba = 'acompanhar';
 }
-
-// Filtros listagem pedidos
-$fs_setor  = $_GET['fs_setor']  ?? '';
-$fs_status = $_GET['fs_status'] ?? 'Ativos';
-$fs_busca  = trim($_GET['fs_busca'] ?? '');
-$fs_pagina = max(1,(int)($_GET['fs_pagina']??1));
-
-$ws = []; $ps = [];
-if ($fs_status==='Ativos')  { $ws[] = "s.status IN ('Pendente','Aprovado')"; }
-elseif ($fs_status)         { $ws[] = "s.status=:status"; $ps['status']=$fs_status; }
-if ($fs_setor)              { $ws[] = "s.setor=:setor"; $ps['setor']=$fs_setor; }
-if ($fs_busca)              { $b="%$fs_busca%"; $ws[] = "(s.solicitante LIKE :b1 OR s.numero LIKE :b2 OR s.observacoes LIKE :b3)"; $ps['b1']=$b; $ps['b2']=$b; $ps['b3']=$b; }
-$ws_sql = $ws ? "WHERE ".implode(' AND ',$ws) : '';
-
-$fs_limite = 30;
-$fs_offset = ($fs_pagina-1)*$fs_limite;
-$fs_total  = $pdo->prepare("SELECT COUNT(*) FROM pedidos_suprimentos s $ws_sql");
-$fs_total->execute($ps); $fs_total_reg = $fs_total->fetchColumn();
-$fs_paginas = ceil($fs_total_reg/$fs_limite);
-
-$fs_st = $pdo->prepare("SELECT s.*,i.nome AS impressora_nome,(SELECT COUNT(*) FROM pedidos_suprimentos_itens WHERE pedido_id=s.id) AS total_itens FROM pedidos_suprimentos s LEFT JOIN impressoras i ON i.id=s.impressora_id $ws_sql ORDER BY s.criado_em DESC LIMIT $fs_limite OFFSET $fs_offset");
-$fs_st->execute($ps);
-$lista_pedidos = $fs_st->fetchAll();
 
 // Pre-seleção de impressora via GET
 $impressora_get_id = (int)($_GET['impressora_id'] ?? 0);
@@ -476,10 +479,14 @@ if ($aba === 'ti' && $subaba === 'abrir'):
       <h3>Chamado aberto com sucesso!</h3>
       <p>Anote o número para acompanhar depois:</p>
       <div class="num"><?= h($chamado_sucesso) ?></div>
+      <?php if ($chamado_sucesso_token): ?>
+        <p style="font-size:12px">Código de acompanhamento (guarde junto com o número):</p>
+        <div class="num" style="font-size:14px;letter-spacing:.02em"><?= h($chamado_sucesso_token) ?></div>
+      <?php endif; ?>
       <p>Nossa equipe de TI receberá sua solicitação em breve.</p>
       <div class="d-flex flex-column gap-2 mt-2 align-items-center">
         <a href="?aba=ti&subaba=abrir" class="btn-outline-brand"><i class="bi bi-plus-circle me-1"></i>Abrir outro chamado</a>
-        <a href="?aba=ti&subaba=acompanhar&numero_chamado=<?= urlencode($chamado_sucesso) ?>" class="text-primary fw-semibold" style="font-size:13px"><i class="bi bi-clock-history me-1"></i>Acompanhar este chamado</a>
+        <a href="?aba=ti&subaba=acompanhar&numero_chamado=<?= urlencode($chamado_sucesso) ?>&t=<?= urlencode($chamado_sucesso_token) ?>" class="text-primary fw-semibold" style="font-size:13px"><i class="bi bi-clock-history me-1"></i>Acompanhar este chamado</a>
       </div>
     </div>
   <?php else: ?>
@@ -583,6 +590,19 @@ elseif ($aba === 'ti' && $subaba === 'acompanhar'):
         <div class="st-step <?= $s3 ?>"><div class="st-ico"><i class="bi bi-check-lg"></i></div><div class="st-lbl">Concluído</div></div>
       </div>
 
+      <?php if (!$acesso_completo): ?>
+        <!-- Sem token de acompanhamento: apenas status, sem dados pessoais (P0-4) -->
+        <div class="row g-3 mb-2">
+          <div class="col-6"><div class="text-muted small">Setor</div><div class="fw-semibold"><?= h($chamado_detalhe['setor']) ?></div></div>
+          <div class="col-6"><div class="text-muted small">Aberto em</div><div><?= date('d/m/Y H:i',strtotime($chamado_detalhe['criado_em'])) ?></div></div>
+          <div class="col-6"><div class="text-muted small">Situação</div><div class="fw-semibold"><?= h($chamado_detalhe['status']) ?></div></div>
+          <div class="col-6"><div class="text-muted small">Responsável</div><div><?= $chamado_detalhe['responsavel_id'] ? 'Em atendimento' : 'Aguardando atribuição' ?></div></div>
+        </div>
+        <div class="alert alert-light border mt-3" style="font-size:12.5px">
+          <i class="bi bi-lock me-1"></i>Para ver a descrição, o histórico e avaliar o atendimento, use o
+          <strong>link completo de acompanhamento</strong> que apareceu quando você abriu o chamado.
+        </div>
+      <?php else: ?>
       <div class="row g-4">
         <div class="col-md-7">
           <h6 class="fw-bold border-bottom pb-2 mb-3">Informações</h6>
@@ -599,7 +619,7 @@ elseif ($aba === 'ti' && $subaba === 'acompanhar'):
           <?php if (!empty($chamado_detalhe['imagens'])): $imgs=json_decode($chamado_detalhe['imagens'],true); if($imgs): ?>
             <h6 class="fw-bold border-bottom pb-2 mb-2 mt-3">Imagens</h6>
             <div class="d-flex gap-2 flex-wrap">
-              <?php foreach($imgs as $img): ?>
+              <?php foreach($imgs as $img): if (!is_string($img) || !str_starts_with($img, 'uploads/')) continue; ?>
                 <a href="<?= h($img) ?>" target="_blank"><img src="<?= h($img) ?>" class="img-thumbnail" style="max-height:100px;max-width:100px;object-fit:cover"></a>
               <?php endforeach; ?>
             </div>
@@ -621,15 +641,17 @@ elseif ($aba === 'ti' && $subaba === 'acompanhar'):
               <?php else: ?>
                 <div class="fw-semibold mb-2" style="font-size:13px"><i class="bi bi-star me-1 text-warning"></i>Avalie o atendimento</div>
                 <form method="post">
-                  <input type="hidden" name="avaliar_chamado_id" value="<?= $chamado_detalhe['id'] ?>">
+                  <?= csrfField() ?>
+                  <input type="hidden" name="avaliar_token" value="<?= h($chamado_detalhe['avaliacao_token'] ?? '') ?>">
                   <input type="hidden" name="aba" value="ti">
                   <input type="hidden" name="subaba" value="acompanhar">
                   <input type="hidden" name="numero_chamado" value="<?= h($chamado_detalhe['numero']) ?>">
+                  <input type="hidden" name="t" value="<?= h($token_chamado) ?>">
                   <div class="d-flex gap-2 mb-2" id="estrelas">
                     <?php for($i=1;$i<=5;$i++): ?><label title="<?= $i ?> estrela(s)" style="cursor:pointer;font-size:24px" onclick="setNota(<?= $i ?>)">☆</label><?php endfor; ?>
                   </div>
                   <input type="hidden" name="nota" id="nota" value="">
-                  <textarea name="comentario" class="form-control form-control-sm mb-2" rows="2" placeholder="Comentário opcional..."></textarea>
+                  <textarea name="comentario" maxlength="2000" class="form-control form-control-sm mb-2" rows="2" placeholder="Comentário opcional..."></textarea>
                   <button type="submit" class="btn btn-warning btn-sm fw-semibold" id="btnAvaliar" disabled>Enviar avaliação</button>
                 </form>
               <?php endif; ?>
@@ -653,97 +675,39 @@ elseif ($aba === 'ti' && $subaba === 'acompanhar'):
           <?php endif; ?>
         </div>
       </div>
+      <?php endif; ?>
     </div>
   </div>
 
 <?php else: ?>
-  <!-- LISTA CHAMADOS -->
+  <!-- RASTREAR CHAMADO (sem listagem pública — P0-4) -->
   <div class="panel-card">
     <div class="panel-head">
-      <div><h2><i class="bi bi-pc-display-horizontal"></i> Rastreamento de Chamados</h2><p>Acompanhe o andamento das solicitações de TI</p></div>
+      <div><h2><i class="bi bi-pc-display-horizontal"></i> Rastrear Chamado</h2><p>Informe o número e o código de acompanhamento</p></div>
     </div>
     <div class="panel-body">
-      <form method="get" class="row g-2 mb-4 pb-3 border-bottom align-items-end">
+      <?php if ($chamado_erro_busca && $numero_chamado): ?>
+        <div class="alert alert-warning" style="font-size:13px"><?= h($chamado_erro_busca) ?></div>
+      <?php endif; ?>
+      <form method="get" class="row g-2 align-items-end">
         <input type="hidden" name="aba" value="ti">
         <input type="hidden" name="subaba" value="acompanhar">
-        <div class="col-9 col-md-10">
-          <label class="form-label fw-bold text-primary" style="font-size:12px">Rastrear por código exato</label>
-          <div class="input-group">
-            <span class="input-group-text bg-light"><i class="bi bi-search"></i></span>
-            <input type="text" name="numero_chamado" class="form-control" placeholder="Ex: CHM-8D4A2B..." autocomplete="off" required>
-          </div>
+        <div class="col-12 col-md-5">
+          <label class="form-label fw-bold text-primary" style="font-size:12px">Número do chamado</label>
+          <input type="text" name="numero_chamado" class="form-control" placeholder="CHM-2026-00001" autocomplete="off" required>
         </div>
-        <div class="col-3 col-md-2">
+        <div class="col-12 col-md-5">
+          <label class="form-label fw-bold text-primary" style="font-size:12px">Código de acompanhamento <span class="text-muted fw-normal">(opcional)</span></label>
+          <input type="text" name="t" class="form-control" placeholder="código do link enviado ao abrir" autocomplete="off">
+        </div>
+        <div class="col-12 col-md-2">
           <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold">Buscar</button>
         </div>
       </form>
-
-      <h6 class="fw-bold mb-2"><i class="bi bi-funnel me-1"></i>Filtrar Chamados</h6>
-      <form method="get" class="row g-2 align-items-end mb-3">
-        <input type="hidden" name="aba" value="ti">
-        <input type="hidden" name="subaba" value="acompanhar">
-        <div class="col-md-3">
-          <label class="form-label">Setor</label>
-          <select name="fc_setor" class="form-select form-select-sm">
-            <option value="">Todos os Setores</option>
-            <?php foreach($SETORES as $s): ?><option value="<?= h($s) ?>" <?= $fc_setor===$s?'selected':'' ?>><?= h($s) ?></option><?php endforeach; ?>
-          </select>
-        </div>
-        <div class="col-md-3">
-          <label class="form-label">Complexidade</label>
-          <select name="fc_nivel" class="form-select form-select-sm">
-            <option value="">Todos</option>
-            <?php foreach(['A Definir','Baixa Complexidade','Média Complexidade','Alta Complexidade'] as $n): ?><option <?= $fc_nivel===$n?'selected':'' ?>><?= $n ?></option><?php endforeach; ?>
-          </select>
-        </div>
-        <div class="col-md-2">
-          <label class="form-label">Status</label>
-          <select name="fc_status" class="form-select form-select-sm">
-            <option value="Ativos" <?= $fc_status==='Ativos'?'selected':'' ?>>Ativos</option>
-            <option value="" <?= $fc_status===''?'selected':'' ?>>Todos</option>
-            <?php foreach(['Aberto','Em Andamento','Pendente','Concluído'] as $so): ?><option <?= $fc_status===$so?'selected':'' ?>><?= $so ?></option><?php endforeach; ?>
-          </select>
-        </div>
-        <div class="col-md-2">
-          <label class="form-label">Solicitante</label>
-          <input type="text" name="fc_busca" class="form-control form-control-sm" value="<?= h($fc_busca) ?>">
-        </div>
-        <div class="col-md-2 d-flex gap-2">
-          <button type="submit" class="btn btn-primary btn-sm flex-fill">Filtrar</button>
-          <a href="?aba=ti&subaba=acompanhar" class="btn btn-outline-secondary btn-sm">✕</a>
-        </div>
-      </form>
-
-      <div class="table-responsive">
-        <table class="table table-hover mb-0">
-          <thead><tr><th>Código</th><th>Solicitante</th><th>Setor</th><th>Nível</th><th>Status</th><th>Data</th><th></th></tr></thead>
-          <tbody>
-            <?php foreach($lista_chamados as $c): ?>
-              <tr>
-                <td><code style="font-size:12px"><?= h($c['numero']) ?></code></td>
-                <td><?= h($c['solicitante']) ?></td>
-                <td style="font-size:12px"><?= h($c['setor']) ?></td>
-                <td><?= sbNivel($c['nivel']) ?></td>
-                <td><?= sbStatus($c['status']) ?></td>
-                <td style="font-size:12px;white-space:nowrap"><?= date('d/m/y H:i',strtotime($c['criado_em'])) ?></td>
-                <td><a href="?aba=ti&subaba=acompanhar&numero_chamado=<?= urlencode($c['numero']) ?>" class="btn btn-outline-primary btn-xs"><i class="bi bi-clock-history"></i> Ver</a></td>
-              </tr>
-            <?php endforeach; ?>
-            <?php if (!$lista_chamados): ?><tr><td colspan="7" class="text-center text-muted py-4">Nenhum chamado encontrado.</td></tr><?php endif; ?>
-          </tbody>
-        </table>
-      </div>
-
-      <?php if ($fc_paginas > 1): ?>
-      <nav class="mt-3"><ul class="pagination pagination-sm justify-content-center mb-0">
-        <?php $qp=$_GET; $qp['fc_pagina']=max(1,$fc_pagina-1); ?>
-        <li class="page-item <?= $fc_pagina<=1?'disabled':'' ?>"><a class="page-link" href="?<?= http_build_query($qp) ?>">Anterior</a></li>
-        <?php for($i=max(1,$fc_pagina-2);$i<=min($fc_paginas,$fc_pagina+2);$i++): $qp['fc_pagina']=$i; ?>
-          <li class="page-item <?= $fc_pagina==$i?'active':'' ?>"><a class="page-link" href="?<?= http_build_query($qp) ?>"><?= $i ?></a></li>
-        <?php endfor; $qp['fc_pagina']=min($fc_paginas,$fc_pagina+1); ?>
-        <li class="page-item <?= $fc_pagina>=$fc_paginas?'disabled':'' ?>"><a class="page-link" href="?<?= http_build_query($qp) ?>">Próxima</a></li>
-      </ul></nav>
-      <?php endif; ?>
+      <p class="text-muted mt-3 mb-0" style="font-size:12px">
+        <i class="bi bi-info-circle me-1"></i>Sem o código, você vê apenas a situação atual.
+        O código completo aparece no link de acompanhamento gerado quando o chamado é aberto.
+      </p>
     </div>
   </div>
 <?php endif; ?>
@@ -762,10 +726,14 @@ elseif ($aba === 'sup' && $subaba === 'pedir'):
       <h3>Pedido enviado com sucesso!</h3>
       <p>Guarde o código para acompanhar:</p>
       <div class="num"><?= h($sup_sucesso) ?></div>
+      <?php if ($sup_sucesso_token): ?>
+        <p style="font-size:12px">Código de acompanhamento:</p>
+        <div class="num" style="font-size:14px;letter-spacing:.02em"><?= h($sup_sucesso_token) ?></div>
+      <?php endif; ?>
       <p>A equipe de TI irá separar os itens e entregar no seu setor.</p>
       <div class="d-flex flex-column gap-2 mt-2 align-items-center">
         <a href="?aba=sup&subaba=pedir" class="btn-outline-brand"><i class="bi bi-plus-circle me-1"></i>Fazer outro pedido</a>
-        <a href="?aba=sup&subaba=acompanhar&numero_sup=<?= urlencode($sup_sucesso) ?>" class="text-primary fw-semibold" style="font-size:13px"><i class="bi bi-clock-history me-1"></i>Acompanhar este pedido</a>
+        <a href="?aba=sup&subaba=acompanhar&numero_sup=<?= urlencode($sup_sucesso) ?>&t=<?= urlencode($sup_sucesso_token) ?>" class="text-primary fw-semibold" style="font-size:13px"><i class="bi bi-clock-history me-1"></i>Acompanhar este pedido</a>
       </div>
     </div>
   <?php else: ?>
@@ -780,6 +748,7 @@ elseif ($aba === 'sup' && $subaba === 'pedir'):
       <?php endif; ?>
       <form method="post" id="supForm" novalidate>
         <input type="hidden" name="_form" value="pedir_suprimento">
+        <?= csrfField() ?>
         <div class="mb-3">
           <label class="form-label">Seu nome completo</label>
           <input type="text" name="solicitante" class="form-control" placeholder="Ex: Maria Oliveira" value="<?= h($_POST['solicitante']??'') ?>" required autocomplete="name">
@@ -900,6 +869,16 @@ elseif ($aba === 'sup' && $subaba === 'acompanhar'):
         </div>
       <?php endif; ?>
 
+      <?php if (!$acesso_sup_completo): ?>
+        <div class="row g-3 mb-2">
+          <div class="col-6"><div class="text-muted small">Setor</div><div class="fw-semibold"><?= h($pedido_detalhe['setor']) ?></div></div>
+          <div class="col-6"><div class="text-muted small">Solicitado em</div><div><?= date('d/m/Y H:i',strtotime($pedido_detalhe['criado_em'])) ?></div></div>
+          <div class="col-6"><div class="text-muted small">Situação</div><div class="fw-semibold"><?= h($pedido_detalhe['status']) ?></div></div>
+        </div>
+        <div class="alert alert-light border mt-3" style="font-size:12.5px">
+          <i class="bi bi-lock me-1"></i>Para ver os itens e os detalhes, use o <strong>link completo</strong> gerado quando o pedido foi enviado.
+        </div>
+      <?php else: ?>
       <div class="row g-4">
         <div class="col-md-7">
           <h6 class="fw-bold border-bottom pb-2 mb-3">Informações do Pedido</h6>
@@ -944,90 +923,38 @@ elseif ($aba === 'sup' && $subaba === 'acompanhar'):
           </div>
         </div>
       </div>
+      <?php endif; /* acesso_sup_completo */ ?>
     </div>
   </div>
 
 <?php else: ?>
-  <!-- LISTA PEDIDOS -->
+  <!-- RASTREAR PEDIDO (sem listagem pública — P0-4) -->
   <div class="panel-card">
     <div class="panel-head">
-      <div><h2><i class="bi bi-box-seam"></i> Pedidos de Suprimentos</h2><p>Rastreie solicitações de insumos em tempo real</p></div>
+      <div><h2><i class="bi bi-box-seam"></i> Rastrear Pedido</h2><p>Informe o número e o código de acompanhamento</p></div>
     </div>
     <div class="panel-body">
-      <form method="get" class="row g-2 mb-4 pb-3 border-bottom align-items-end">
+      <?php if ($sup_erro_busca && $numero_sup_busca): ?>
+        <div class="alert alert-warning" style="font-size:13px"><?= h($sup_erro_busca) ?></div>
+      <?php endif; ?>
+      <form method="get" class="row g-2 align-items-end">
         <input type="hidden" name="aba" value="sup">
         <input type="hidden" name="subaba" value="acompanhar">
-        <div class="col-9 col-md-10">
-          <label class="form-label fw-bold text-primary" style="font-size:12px">Rastrear por código exato</label>
-          <div class="input-group">
-            <span class="input-group-text bg-light"><i class="bi bi-search"></i></span>
-            <input type="text" name="numero_sup" class="form-control" placeholder="Ex: SUP-7C3F2B..." autocomplete="off" required>
-          </div>
+        <div class="col-12 col-md-5">
+          <label class="form-label fw-bold text-primary" style="font-size:12px">Número do pedido</label>
+          <input type="text" name="numero_sup" class="form-control" placeholder="SUP-2026-00001" autocomplete="off" required>
         </div>
-        <div class="col-3 col-md-2">
+        <div class="col-12 col-md-5">
+          <label class="form-label fw-bold text-primary" style="font-size:12px">Código de acompanhamento <span class="text-muted fw-normal">(opcional)</span></label>
+          <input type="text" name="t" class="form-control" placeholder="código do link do pedido" autocomplete="off">
+        </div>
+        <div class="col-12 col-md-2">
           <button type="submit" class="btn btn-primary w-100 py-2 fw-semibold">Buscar</button>
         </div>
       </form>
-
-      <h6 class="fw-bold mb-2"><i class="bi bi-funnel me-1"></i>Filtrar Pedidos</h6>
-      <form method="get" class="row g-2 align-items-end mb-3">
-        <input type="hidden" name="aba" value="sup">
-        <input type="hidden" name="subaba" value="acompanhar">
-        <div class="col-md-4">
-          <label class="form-label">Setor</label>
-          <select name="fs_setor" class="form-select form-select-sm">
-            <option value="">Todos os Setores</option>
-            <?php foreach($SETORES as $s): ?><option value="<?= h($s) ?>" <?= $fs_setor===$s?'selected':'' ?>><?= h($s) ?></option><?php endforeach; ?>
-          </select>
-        </div>
-        <div class="col-md-3">
-          <label class="form-label">Status</label>
-          <select name="fs_status" class="form-select form-select-sm">
-            <option value="Ativos" <?= $fs_status==='Ativos'?'selected':'' ?>>Ativos</option>
-            <option value="" <?= $fs_status===''?'selected':'' ?>>Todos</option>
-            <?php foreach(['Pendente','Aprovado','Entregue','Cancelado'] as $so): ?><option <?= $fs_status===$so?'selected':'' ?>><?= $so ?></option><?php endforeach; ?>
-          </select>
-        </div>
-        <div class="col-md-3">
-          <label class="form-label">Solicitante / Código</label>
-          <input type="text" name="fs_busca" class="form-control form-control-sm" value="<?= h($fs_busca) ?>">
-        </div>
-        <div class="col-md-2 d-flex gap-2">
-          <button type="submit" class="btn btn-primary btn-sm flex-fill">Filtrar</button>
-          <a href="?aba=sup&subaba=acompanhar" class="btn btn-outline-secondary btn-sm">✕</a>
-        </div>
-      </form>
-
-      <div class="table-responsive">
-        <table class="table table-hover mb-0">
-          <thead><tr><th>Código</th><th>Solicitante</th><th>Setor</th><th>Itens</th><th>Status</th><th>Data</th><th></th></tr></thead>
-          <tbody>
-            <?php foreach($lista_pedidos as $p): ?>
-              <tr>
-                <td><code style="font-size:12px"><?= h($p['numero']) ?></code></td>
-                <td><?= h($p['solicitante']) ?></td>
-                <td style="font-size:12px"><?= h($p['setor']) ?></td>
-                <td><span class="badge bg-light text-dark border"><?= (int)$p['total_itens'] ?> item(s)</span></td>
-                <td><?= sbSup($p['status']) ?></td>
-                <td style="font-size:12px;white-space:nowrap"><?= date('d/m/y H:i',strtotime($p['criado_em'])) ?></td>
-                <td><a href="?aba=sup&subaba=acompanhar&numero_sup=<?= urlencode($p['numero']) ?>" class="btn btn-outline-primary btn-xs"><i class="bi bi-clock-history"></i> Ver</a></td>
-              </tr>
-            <?php endforeach; ?>
-            <?php if(!$lista_pedidos): ?><tr><td colspan="7" class="text-center text-muted py-4">Nenhum pedido encontrado.</td></tr><?php endif; ?>
-          </tbody>
-        </table>
-      </div>
-
-      <?php if ($fs_paginas > 1): ?>
-      <nav class="mt-3"><ul class="pagination pagination-sm justify-content-center mb-0">
-        <?php $qp=$_GET; $qp['fs_pagina']=max(1,$fs_pagina-1); ?>
-        <li class="page-item <?= $fs_pagina<=1?'disabled':'' ?>"><a class="page-link" href="?<?= http_build_query($qp) ?>">Anterior</a></li>
-        <?php for($i=max(1,$fs_pagina-2);$i<=min($fs_paginas,$fs_pagina+2);$i++): $qp['fs_pagina']=$i; ?>
-          <li class="page-item <?= $fs_pagina==$i?'active':'' ?>"><a class="page-link" href="?<?= http_build_query($qp) ?>"><?= $i ?></a></li>
-        <?php endfor; $qp['fs_pagina']=min($fs_paginas,$fs_pagina+1); ?>
-        <li class="page-item <?= $fs_pagina>=$fs_paginas?'disabled':'' ?>"><a class="page-link" href="?<?= http_build_query($qp) ?>">Próxima</a></li>
-      </ul></nav>
-      <?php endif; ?>
+      <p class="text-muted mt-3 mb-0" style="font-size:12px">
+        <i class="bi bi-info-circle me-1"></i>Sem o código, você vê apenas a situação atual do pedido.
+      </p>
     </div>
   </div>
 <?php endif; ?>

@@ -67,8 +67,21 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 layoutHeader('Registrar Manutenção', 'manutencoes');
+
+// Nome da impressora pré-selecionada (se veio via GET), para o breadcrumb
+$imp_nome_bc = null;
+if ($impressora_get_id) {
+    foreach ($impressoras as $i) {
+        if ((int)$i['id'] === $impressora_get_id) { $imp_nome_bc = $i['nome']; break; }
+    }
+}
 ?>
 
+<?php breadcrumb(array_filter([
+    ['label'=>'Impressoras','href'=>'impressoras.php'],
+    $imp_nome_bc ? ['label'=>$imp_nome_bc,'href'=>'impressora.php?id='.$impressora_get_id] : null,
+    ['label'=>'Registrar Manutenção'],
+])); ?>
 <div class="page-header">
   <h1 class="page-title"><i class="bi bi-wrench-adjustable-fill me-2 text-primary"></i>Registrar Manutenção</h1>
 </div>

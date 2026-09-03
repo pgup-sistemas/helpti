@@ -2,22 +2,92 @@
 // Buffer de saída — previne erro "headers already sent" caso config.php tenha BOM
 ob_start();
 
+// Marca que o bootstrap rodou — libs internas checam isto para recusar acesso direto
+define('HELPTI_BOOT', 1);
+
 // Carregar configurações de produção
 require_once __DIR__ . '/config.php';
 
-// Iniciar sessão global
-if (session_status() === PHP_SESSION_NONE) session_start();
-
 // Zonas de tempo
 date_default_timezone_set('America/Sao_Paulo');
+
+// ── Log estruturado (arquivo fora do webroot quando possível) ─────────────
+function logApp(string $nivel, string $evento, array $ctx = []): void {
+    $dir  = __DIR__ . '/logs';
+    if (!is_dir($dir)) @mkdir($dir, 0770, true);
+    $linha = json_encode([
+        'ts'     => date('c'),
+        'nivel'  => $nivel,
+        'evento' => $evento,
+        'ip'     => $_SERVER['REMOTE_ADDR'] ?? 'cli',
+        'uri'    => $_SERVER['REQUEST_URI'] ?? ($_SERVER['SCRIPT_NAME'] ?? ''),
+        'ctx'    => $ctx,
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    @file_put_contents($dir . '/app-' . date('Y-m-d') . '.log', $linha . "\n", FILE_APPEND | LOCK_EX);
+}
+
+// ── Tratamento global de erros — nunca falha silenciosa (P2-1) ────────────
+set_exception_handler(function (Throwable $e) {
+    logApp('error', 'uncaught_exception', [
+        'msg' => $e->getMessage(),
+        'file' => $e->getFile() . ':' . $e->getLine(),
+    ]);
+    if (PHP_SAPI === 'cli') {
+        fwrite(STDERR, "ERRO: " . $e->getMessage() . "\n");
+        exit(1);
+    }
+    if (!headers_sent()) http_response_code(500);
+    $detalhe = defined('DEBUG_MODE') && DEBUG_MODE
+        ? '<pre style="text-align:left;max-width:800px;margin:1rem auto;white-space:pre-wrap">'
+          . htmlspecialchars($e->getMessage() . "\n" . $e->getTraceAsString()) . '</pre>'
+        : '';
+    echo '<!doctype html><meta charset="utf-8"><title>Erro</title>'
+       . '<div style="font-family:system-ui,sans-serif;text-align:center;padding:3rem">'
+       . '<h1 style="color:#1D3557">Ops — algo deu errado</h1>'
+       . '<p>Nossa equipe foi notificada. Tente novamente em instantes.</p>'
+       . $detalhe . '</div>';
+    exit;
+});
+
+// ── Sessão global endurecida (P1-9) ──────────────────────────────────────
+function session(): void {
+    if (session_status() !== PHP_SESSION_NONE) return;
+    $https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
+          || (($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '') === 'https');
+    session_set_cookie_params([
+        'lifetime' => 0,
+        'path'     => '/',
+        'secure'   => $https,
+        'httponly' => true,
+        'samesite' => 'Lax',
+    ]);
+    session_name('HELPTI_SESS');
+    session_start();
+
+    // Expiração: 30 min de inatividade OU 12 h de sessão absoluta
+    $agora = time();
+    $idle  = 30 * 60;
+    $abs   = 12 * 3600;
+    if (isset($_SESSION['usuario'])) {
+        $ini = $_SESSION['_iniciada']  ?? $agora;
+        $act = $_SESSION['_ultimo_ato'] ?? $agora;
+        if (($agora - $act) > $idle || ($agora - $ini) > $abs) {
+            $_SESSION = [];
+            session_regenerate_id(true);
+        } else {
+            $_SESSION['_ultimo_ato'] = $agora;
+            $_SESSION['_iniciada']   = $ini;
+        }
+    }
+}
 
 function db(): PDO {
     static $pdo = null;
     if ($pdo === null) {
         $dsn = "mysql:host=" . DB_HOST . ";dbname=" . DB_NAME . ";charset=utf8mb4";
         $options = [
-            // Se DEBUG_MODE for false, erros silenciosos (logados pelo servidor, mas não exibidos na tela)
-            PDO::ATTR_ERRMODE            => DEBUG_MODE ? PDO::ERRMODE_EXCEPTION : PDO::ERRMODE_SILENT,
+            // Sempre EXCEPTION — falha de escrita nunca deve passar despercebida.
+            PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
             PDO::ATTR_EMULATE_PREPARES   => false,
         ];
@@ -26,8 +96,37 @@ function db(): PDO {
     return $pdo;
 }
 
-function session(): void {
-    if (session_status() === PHP_SESSION_NONE) session_start();
+// IP real do cliente (respeita proxy do cPanel se configurado)
+function clientIp(): string {
+    return $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+}
+
+// Token opaco de 16 hex — para acompanhamento público e avaliação
+function tokenOpaco(): string {
+    return bin2hex(random_bytes(8)); // 16 chars
+}
+
+/**
+ * Rate limit genérico persistido em banco (P1-8).
+ * Retorna true se a ação está PERMITIDA; false se estourou o limite.
+ */
+function rateLimit(string $bucket, int $max, int $janelaSeg): bool {
+    try {
+        $pdo = db();
+        $pdo->prepare("
+            INSERT INTO rate_limits (bucket, tentativas, janela_inicio)
+            VALUES (?, 1, NOW())
+            ON DUPLICATE KEY UPDATE
+                tentativas    = IF(TIMESTAMPDIFF(SECOND, janela_inicio, NOW()) > ?, 1, tentativas + 1),
+                janela_inicio = IF(TIMESTAMPDIFF(SECOND, janela_inicio, NOW()) > ?, NOW(), janela_inicio)
+        ")->execute([$bucket, $janelaSeg, $janelaSeg]);
+        $r = $pdo->prepare("SELECT tentativas FROM rate_limits WHERE bucket = ?");
+        $r->execute([$bucket]);
+        return (int)$r->fetchColumn() <= $max;
+    } catch (Throwable $e) {
+        logApp('warn', 'rate_limit_falhou', ['bucket' => $bucket, 'msg' => $e->getMessage()]);
+        return true; // fail-open: não bloqueia usuário legítimo se a tabela sumir
+    }
 }
 
 function usuario(): ?array {
@@ -35,27 +134,69 @@ function usuario(): ?array {
     return $_SESSION['usuario'] ?? null;
 }
 
+/**
+ * Revalida no banco que o usuário da sessão ainda existe, está ativo e mantém o perfil.
+ * Roda no máximo 1×/min por request-cycle. Corrige "privilégio é snapshot do login".
+ */
+function usuarioValidado(): ?array {
+    $u = usuario();
+    if (!$u) return null;
+    $agora = time();
+    if (($_SESSION['_perfil_checado'] ?? 0) > $agora - 60) return $u;
+    try {
+        $st = db()->prepare("SELECT perfil, ativo, nome FROM usuarios WHERE id = ?");
+        $st->execute([$u['id']]);
+        $row = $st->fetch();
+        if (!$row || (int)$row['ativo'] !== 1) {
+            $_SESSION = [];
+            session_regenerate_id(true);
+            return null;
+        }
+        $_SESSION['usuario']['perfil'] = $row['perfil'];
+        $_SESSION['usuario']['nome']   = $row['nome'];
+        $_SESSION['_perfil_checado']   = $agora;
+        return $_SESSION['usuario'];
+    } catch (Throwable) {
+        return $u; // se o banco oscilar, mantém a sessão atual
+    }
+}
+
 function requireLogin(): void {
-    if (!usuario()) { header('Location: login.php'); exit; }
+    if (!usuarioValidado()) { header('Location: login.php'); exit; }
 }
 
 function requireGestora(): void {
     requireLogin();
-    $u = usuario();
-    if ($u['perfil'] === 'tecnico') { header('Location: dashboard.php'); exit; }
+    $u = usuarioValidado();
+    if (($u['perfil'] ?? '') === 'tecnico') { header('Location: dashboard.php'); exit; }
 }
 
 function requireAdmin(): void {
     requireLogin();
-    $u = usuario();
-    if ($u['perfil'] !== 'admin') { header('Location: dashboard.php'); exit; }
+    $u = usuarioValidado();
+    if (($u['perfil'] ?? '') !== 'admin') { header('Location: dashboard.php'); exit; }
 }
 
 function gerarNumero(): string {
-    // LAST_INSERT_ID(expr) é atômico por conexão no MySQL — elimina race condition
-    db()->exec("UPDATE sequences SET value = LAST_INSERT_ID(value + 1) WHERE name = 'chamados'");
-    $seq = (int) db()->query("SELECT LAST_INSERT_ID()")->fetchColumn();
-    return 'CHM-' . date('Y') . '-' . str_pad($seq, 5, '0', STR_PAD_LEFT);
+    return gerarNumeroSeq('chamados', 'CHM');
+}
+
+function gerarNumeroSuprimento(): string {
+    return gerarNumeroSeq('suprimentos', 'SUP');
+}
+
+/** Sequência atômica por conexão (LAST_INSERT_ID). Único ponto de geração de número. */
+function gerarNumeroSeq(string $sequencia, string $prefixo): string {
+    $pdo = db();
+    $n = $pdo->prepare("UPDATE sequences SET value = LAST_INSERT_ID(value + 1) WHERE name = ?");
+    $n->execute([$sequencia]);
+    if ($n->rowCount() === 0) {
+        // primeira vez: cria a linha da sequência
+        $pdo->prepare("INSERT IGNORE INTO sequences (name, value) VALUES (?, 0)")->execute([$sequencia]);
+        $pdo->prepare("UPDATE sequences SET value = LAST_INSERT_ID(value + 1) WHERE name = ?")->execute([$sequencia]);
+    }
+    $seq = (int) $pdo->query("SELECT LAST_INSERT_ID()")->fetchColumn();
+    return $prefixo . '-' . date('Y') . '-' . str_pad((string)$seq, 5, '0', STR_PAD_LEFT);
 }
 
 function getSemana(string $data): string {
@@ -192,10 +333,39 @@ function slaHoras(string $nivel): ?int {
     };
 }
 
+/**
+ * Prazo de SLA em horário comercial (seg–sex, 08h–18h, America/Sao_Paulo).
+ * Conta apenas horas úteis a partir de $criado_em. (P2-5)
+ */
+function slaDeadline(string $criado_em, int $horas): int {
+    $ini    = new DateTime('@' . strtotime($criado_em));
+    $ini->setTimezone(new DateTimeZone('America/Sao_Paulo'));
+    $restante = $horas * 3600;
+    $cursor   = clone $ini;
+    $abre = 8; $fecha = 18; // horário comercial
+    $guard = 0;
+    while ($restante > 0 && $guard++ < 2000) {
+        $dow = (int)$cursor->format('N'); // 1=seg .. 7=dom
+        $h   = (int)$cursor->format('G');
+        if ($dow >= 6 || $h >= $fecha) { // fim de semana ou após expediente → próximo dia 08h
+            $cursor->modify('+1 day')->setTime($abre, 0);
+            continue;
+        }
+        if ($h < $abre) { $cursor->setTime($abre, 0); continue; }
+        // dentro do expediente: consome até o fim do dia ou o restante
+        $fimDia = (clone $cursor)->setTime($fecha, 0);
+        $disp   = $fimDia->getTimestamp() - $cursor->getTimestamp();
+        $passo  = min($disp, $restante);
+        $cursor->modify('+' . $passo . ' seconds');
+        $restante -= $passo;
+    }
+    return $cursor->getTimestamp();
+}
+
 function slaBadge(string $nivel, string $criado_em, string $status): string {
     $horas = slaHoras($nivel);
     if (!$horas || $status === 'Concluído') return '';
-    $limite = strtotime($criado_em) + $horas * 3600;
+    $limite = slaDeadline($criado_em, $horas);
     $agora  = time();
     $diff   = $limite - $agora;
     if ($diff < 0) {
@@ -275,7 +445,10 @@ function notificarChamado(string $evento, array $chamado, ?string $emailDest = n
     }
 
     if ($evento === 'concluido') {
-        $link = APP_URL . "/avaliar.php?id=" . ($chamado['id'] ?? '');
+        // Link de avaliação por token opaco (nunca por id sequencial) — P1-1
+        $link = !empty($chamado['avaliacao_token'])
+            ? APP_URL . "/avaliar.php?t=" . rawurlencode($chamado['avaliacao_token'])
+            : APP_URL . "/avaliar.php";
         queueEmail(
             $emailDest,
             "[" . APP_NOME . "] Chamado {$numero} concluído — avalie o atendimento",
