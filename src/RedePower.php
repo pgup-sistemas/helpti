@@ -149,6 +149,8 @@ final class RedePower
             $msg = 'Autenticou, mas a conta não pode desligar remotamente — precisa ser Administrador local e ter LocalAccountTokenFilterPolicy=1.';
         } elseif (str_contains($s, 'connection_refused') || str_contains($s, 'could not connect') || str_contains($s, 'timed out') || str_contains($s, 'unreachable') || str_contains($s, 'host_unreachable')) {
             $msg = 'Sem conexão — host desligado ou firewall bloqueando RPC/445.';
+        } elseif ($acao === 'cancelar' && str_contains($s, 'object_name_not_found')) {
+            $msg = 'Não havia nenhum desligamento agendado nesta máquina.';
         } else {
             $msg = $res['saida'] !== '' ? $res['saida'] : 'Falha desconhecida.';
         }
