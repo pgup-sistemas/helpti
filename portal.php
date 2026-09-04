@@ -306,7 +306,7 @@ h1,h2,h3,.form-card-header h2,.panel-head h2{font-family:'Manrope',system-ui,san
 
 /* ── Rodapé (link de acesso restrito) ── */
 .portal-footer{text-align:center;margin-top:1.5rem}
-.portal-footer a{color:#9ca3af;font-size:12px;text-decoration:none;display:inline-flex;align-items:center;gap:5px;transition:.15s}
+.portal-footer a{color:#9ca3af;font-size:12px;text-decoration:none;display:inline-flex;align-items:center;gap:5px;transition:.15s;margin:0 .6rem}
 .portal-footer a:hover{color:var(--brand)}
 .portal-footer-vendor{font-size:10px;color:#cbd5e1;margin-top:.5rem}
 
@@ -1031,6 +1031,7 @@ elseif ($aba === 'sup' && $subaba === 'acompanhar'):
 </div><!-- /portal-card -->
 
 <div class="portal-footer">
+  <a href="ajuda.php"><i class="bi bi-question-circle"></i>Ajuda</a>
   <a href="login.php"><i class="bi bi-shield-lock"></i>Área Restrita</a>
   <div class="portal-footer-vendor">by <?= APP_VENDOR ?></div>
 </div>
