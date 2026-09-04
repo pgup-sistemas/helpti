@@ -562,6 +562,9 @@ if(localStorage.getItem('sidebar-collapsed') === 'true')
       <a href="portal.php" class="nav-link" target="_blank" title="Portal do Colaborador">
         <i class="bi bi-box-arrow-up-right"></i> <span>Portal do Colaborador</span>
       </a>
+      <a href="ajuda.php" class="nav-link" target="_blank" title="Ajuda">
+        <i class="bi bi-question-circle"></i> <span>Ajuda</span>
+      </a>
       <a href="logout.php" class="nav-link" style="color:#f87171" title="Sair">
         <i class="bi bi-box-arrow-right"></i> <span>Sair</span>
       </a>
