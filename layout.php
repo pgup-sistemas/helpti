@@ -484,6 +484,9 @@ if(localStorage.getItem('sidebar-collapsed') === 'true')
       <a href="hosts_rede.php" class="nav-link <?= $paginaAtiva==='hosts_rede'?'active':'' ?>" title="Hosts de Rede">
         <i class="bi bi-diagram-3-fill"></i> <span>Hosts de Rede</span>
       </a>
+      <a href="topologia.php" class="nav-link <?= $paginaAtiva==='topologia'?'active':'' ?>" title="Topologia">
+        <i class="bi bi-share-fill"></i> <span>Topologia</span>
+      </a>
       <a href="termos.php" class="nav-link <?= $paginaAtiva==='termos'?'active':'' ?>" title="Termos de Guarda / Uso">
         <i class="bi bi-file-earmark-person-fill"></i> <span>Termos de Uso</span>
       </a>

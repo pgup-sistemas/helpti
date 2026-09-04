@@ -4,7 +4,7 @@
     {
       "name": "helpti",
       "runtimeExecutable": "php",
-      "runtimeArgs": ["-S", "localhost:8090", "-t", "/home/oezios/Documentos/helpti.alphaclinmais.net.br"],
+      "runtimeArgs": ["-S", "localhost:8090", "-t", "/home/oezios/Documentos/helpti"],
       "port": 8090
     }
   ]
