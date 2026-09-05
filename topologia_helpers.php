@@ -76,6 +76,17 @@ function topologiaMontarDados(PDO $pdo): array {
         ORDER BY h.rede, INET_ATON(h.ip)
     ")->fetchAll(PDO::FETCH_ASSOC);
 
+    // A tabela `impressoras` (cadastro manual + monitoramento SNMP) é a fonte
+    // de verdade sobre o que é impressora — mais confiável que o palpite do
+    // scanner ARP por fabricante/porta. Sincroniza aqui pra árvore, filtro e
+    // ícone concordarem com o que impressoras.php já mostra.
+    foreach ($hosts as &$h) {
+        if ($h['imp_id'] !== null && !str_starts_with($h['tipo'] ?? '', 'Impressora')) {
+            $h['tipo'] = 'Impressora';
+        }
+    }
+    unset($h);
+
     $nodes = [];
     $edges = [];
     $porRede = [];

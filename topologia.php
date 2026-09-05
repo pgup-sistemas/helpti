@@ -260,6 +260,12 @@ body.topo-fullscreen #cy{ height:calc(100vh - 56px); border-radius:0; border-lef
   let cy = null;
   let currentFilter = 'all';
   let currentRede = 'all';
+  // O plugin de card HTML reconstrói o card sozinho sempre que node.style()
+  // é chamado (evento "style" do Cytoscape) — inclusive DEPOIS que a gente já
+  // escondeu ele, desfazendo o display:none. Por isso o template consulta
+  // este Set (sempre atual) pra decidir se desenha ou não, em vez de a gente
+  // tentar sobrescrever o card já pronto de fora.
+  const hiddenHostIds = new Set();
   const CLUSTER_THRESHOLD = 12; // acima disso, os filhos de um hub viram um nó "+N dispositivos"
 
   // Bootstrap Icons é uma webfont — não dá pra usar no canvas do Cytoscape sem
@@ -460,7 +466,7 @@ body.topo-fullscreen #cy{ height:calc(100vh - 56px); border-radius:0; border-lef
           halign: 'center', valign: 'center', halignBox: 'center', valignBox: 'center',
           tpl: function(data){
             const n = window.TOPO_NODES[data.id];
-            if (!n) return '';
+            if (!n || hiddenHostIds.has(n.id)) return '';
             const badges = (n.badges || []).map(b =>
               `<span class="tnc-badge ${b.sev}">${escapeHtml(b.label)}</span>`).join('');
             return `
@@ -520,9 +526,11 @@ body.topo-fullscreen #cy{ height:calc(100vh - 56px); border-radius:0; border-lef
       else if (f === 'all') mostrar = true;
       else if (f === 'alerts') mostrar = (n.status === 'warn' || n.status === 'unknown' || (n.badges && n.badges.length > 0));
       else mostrar = (FILTER_TIPOS[f] || []).includes(n.tipo);
+      // Atualiza o Set ANTES de mexer no style — o node.style() dispara o
+      // evento "style" do Cytoscape, que faz o plugin reconstruir o card
+      // chamando o template de novo; ele precisa ler o valor já correto.
+      if (mostrar) hiddenHostIds.delete(node.id()); else hiddenHostIds.add(node.id());
       node.style('display', mostrar ? 'element' : 'none');
-      const el = cyEl.querySelector('.tnc[data-node-id="' + node.id() + '"]');
-      if (el) el.style.display = mostrar ? '' : 'none';
     });
 
     // Grupo sem nenhum host visível dentro dele some junto — evita caixas vazias.
@@ -569,11 +577,11 @@ body.topo-fullscreen #cy{ height:calc(100vh - 56px); border-radius:0; border-lef
 
   function sairTelaCheia(){
     document.body.classList.remove('topo-fullscreen');
-    if (cy) { cy.resize(); cy.fit(undefined, 30); }
+    if (cy) { cy.resize(); applyFilter(currentFilter); }
   }
   document.getElementById('btnFullscreen').addEventListener('click', () => {
     document.body.classList.toggle('topo-fullscreen');
-    if (cy) { cy.resize(); cy.fit(undefined, 30); }
+    if (cy) { cy.resize(); applyFilter(currentFilter); }
   });
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && document.body.classList.contains('topo-fullscreen')) sairTelaCheia();
