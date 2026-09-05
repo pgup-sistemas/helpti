@@ -29,6 +29,7 @@ if (!$temTabela) {
 .topo-chip:hover{color:var(--tx-primary)}
 .topo-chip.active{color:var(--brand);border-bottom-color:var(--brand)}
 .topo-sep{width:1px;height:14px;background:var(--border)}
+.topo-picker{display:inline-flex;align-items:center;gap:6px;color:var(--tx-muted);font-size:13px}
 .topo-legend{position:absolute;bottom:12px;right:12px;display:flex;align-items:center;gap:10px;font-size:10.5px;color:var(--tx-faint);background:var(--bg-surface);padding:4px 10px;border-radius:20px;border:1px solid var(--border);z-index:5;opacity:.75;transition:opacity .15s}
 .topo-legend:hover{opacity:1}
 .topo-legend span{display:flex;align-items:center;gap:4px}
@@ -85,6 +86,19 @@ body.topo-fullscreen #cy{ height:calc(100vh - 56px); border-radius:0; border-lef
 [data-theme="dark"] .tnc-badge.warn{background:#422006;color:#fde68a}
 [data-theme="dark"] .tnc-badge.new{background:#0c1e40;color:#93c5fd}
 
+/* Card de grupo estrutural (infraestrutura/setor/tipo) — mesma técnica do
+   card de host, ícone real do Bootstrap Icons em vez de emoji. */
+.tng{
+  width:190px;background:var(--bg-surface-alt);border:1.5px solid var(--border);border-radius:10px;
+  padding:.5rem .65rem;box-shadow:0 1px 4px rgba(0,0,0,.06);cursor:pointer;display:flex;align-items:center;gap:10px;
+  font-family:'Segoe UI',system-ui,sans-serif;transition:box-shadow .15s,transform .15s,border-color .15s;
+}
+.tng:hover{box-shadow:0 5px 16px rgba(0,0,0,.14);transform:translateY(-2px);border-color:var(--brand-dark)}
+.tng-ico{width:32px;height:32px;border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:16px;flex-shrink:0}
+.tng-info{min-width:0}
+.tng-label{font-size:12.5px;font-weight:700;color:var(--tx-primary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tng-count{font-size:11px;color:var(--tx-muted);margin-top:1px}
+
 /* Side panel (offcanvas) — o Bootstrap usa fundo branco fixo por padrão,
    sem herdar o tema claro/escuro do HelpTI; força os tokens aqui. */
 #painelAtivo{width:400px;background:var(--bg-surface);color:var(--tx-primary)}
@@ -122,9 +136,11 @@ body.topo-fullscreen #cy{ height:calc(100vh - 56px); border-radius:0; border-lef
 </div>
 
 <div class="topo-toolbar">
-  <select id="redePicker" class="form-select form-select-sm" style="width:auto;font-size:12.5px;font-weight:600">
-    <option value="all">🌐 Todas as redes</option>
-  </select>
+  <span class="topo-picker"><i class="bi bi-diagram-3"></i>
+    <select id="redePicker" class="form-select form-select-sm" style="width:auto;font-size:12.5px;font-weight:600">
+      <option value="all">Todas as redes</option>
+    </select>
+  </span>
   <div class="topo-sep"></div>
   <button class="topo-chip active" data-filtro="all">Tudo</button>
   <button class="topo-chip" data-filtro="computer">Computadores</button>
@@ -135,12 +151,14 @@ body.topo-fullscreen #cy{ height:calc(100vh - 56px); border-radius:0; border-lef
   <div class="topo-sep"></div>
   <button class="topo-chip" data-filtro="alerts"><i class="bi bi-exclamation-triangle-fill me-1"></i>Com alerta</button>
   <div class="topo-sep"></div>
-  <select id="layoutPicker" class="form-select form-select-sm" style="width:auto;font-size:12.5px;font-weight:600">
-    <option value="dagre-lr">🌳 Árvore horizontal</option>
-    <option value="dagre-tb">🌳 Árvore vertical</option>
-    <option value="concentric">🎯 Radial</option>
-    <option value="cose">🫧 Orgânico</option>
-  </select>
+  <span class="topo-picker"><i class="bi bi-share-fill"></i>
+    <select id="layoutPicker" class="form-select form-select-sm" style="width:auto;font-size:12.5px;font-weight:600">
+      <option value="dagre-lr">Árvore horizontal</option>
+      <option value="dagre-tb">Árvore vertical</option>
+      <option value="concentric">Radial</option>
+      <option value="cose">Orgânico</option>
+    </select>
+  </span>
   <button class="topo-fs-btn" id="btnFullscreen" title="Tela cheia"><i class="bi bi-arrows-fullscreen"></i></button>
 </div>
 
@@ -268,19 +286,6 @@ body.topo-fullscreen #cy{ height:calc(100vh - 56px); border-radius:0; border-lef
   const hiddenHostIds = new Set();
   const CLUSTER_THRESHOLD = 12; // acima disso, os filhos de um hub viram um nó "+N dispositivos"
 
-  // Bootstrap Icons é uma webfont — não dá pra usar no canvas do Cytoscape sem
-  // registrar codepoints. Para os nós de grupo (poucos, estruturais) usamos um
-  // emoji equivalente, que o canvas desenha nativamente em qualquer SO.
-  const ICON_EMOJI = {
-    'bi-hdd-network-fill': '🔀', 'bi-hdd-network': '🔀', 'bi-building': '🏢',
-    'bi-question-diamond': '❓', 'bi-pc-display': '🖥️', 'bi-laptop': '💻',
-    'bi-tablet-fill': '📱', 'bi-terminal-fill': '⌨️', 'bi-printer-fill': '🖨️',
-    'bi-wifi': '📶', 'bi-router-fill': '📡', 'bi-server': '🗄️',
-    'bi-hdd-rack-fill': '🗄️', 'bi-display': '🖥️', 'bi-display-fill': '🖥️',
-    'bi-phone-fill': '📱', 'bi-telephone-fill': '☎️', 'bi-battery-charging': '🔋',
-    'bi-door-open': '🚪', 'bi-heart-pulse': '⚕️', 'bi-tools': '🔧',
-  };
-
   function severityRank(n){
     if (!n) return 3;
     if (n.status === 'unknown') return 0;
@@ -318,16 +323,7 @@ body.topo-fullscreen #cy{ height:calc(100vh - 56px); border-radius:0; border-lef
     const elements = [];
     data.nodes.forEach(n => {
       if (hiddenIds.has(n.id)) return;
-      if (n.kind === 'group') {
-        const emoji = ICON_EMOJI[n.icon] || '📦';
-        elements.push({ data: {
-          id: n.id, kind: n.kind,
-          displayLabel: `${emoji}  ${n.label}\n${n.count} ativo${n.count === 1 ? '' : 's'}`,
-          groupColor: n.color,
-        }});
-        return;
-      }
-      elements.push({ data: { id: n.id, kind: n.kind, label: n.label, statusColor: STATUS_COLOR[n.status] || '#c7d0dd' } });
+      elements.push({ data: { id: n.id, kind: n.kind, label: n.label, statusColor: STATUS_COLOR[n.status] || n.color || '#c7d0dd' } });
     });
 
     Object.entries(childrenBySource).forEach(([source, targets]) => {
@@ -387,19 +383,9 @@ body.topo-fullscreen #cy{ height:calc(100vh - 56px); border-radius:0; border-lef
       // Host: a "caixa" do Cytoscape fica invisível — quem aparece é o card
       // HTML sobreposto (nodeHtmlLabel), nítido em qualquer nível de zoom.
       { selector: 'node[kind="host"]', style: { 'width': 150, 'height': 90 } },
-      // Grupo (infra/setor/tipo): poucos nós, estruturais — renderizados
-      // nativamente (emoji + contagem), sem depender do overlay HTML.
-      { selector: 'node[kind="group"]', style: {
-          'background-opacity': 1,
-          'background-color': cssVar('--bg-surface-alt') || '#f8f9fa',
-          'border-width': 2, 'border-color': 'data(groupColor)',
-          'width': 190, 'height': 60,
-          'label': 'data(displayLabel)', 'text-valign': 'center', 'text-halign': 'center',
-          'text-wrap': 'wrap', 'text-max-width': '170px',
-          'font-size': 11.5, 'font-weight': 700,
-          'color': cssVar('--tx-primary') || '#111',
-          'min-zoomed-font-size': 7,
-      }},
+      // Grupo (infra/setor/tipo): mesma técnica do host — caixa invisível,
+      // card HTML por cima com ícone real do Bootstrap Icons.
+      { selector: 'node[kind="group"]', style: { 'width': 190, 'height': 56 } },
       { selector: 'node[kind="root"]', style: {
           'background-opacity': 1,
           'background-color': cssVar('--brand') || '#1D3557',
@@ -441,7 +427,7 @@ body.topo-fullscreen #cy{ height:calc(100vh - 56px); border-radius:0; border-lef
       data.nodes.filter(n => n.kind === 'root').forEach(n => {
         const opt = document.createElement('option');
         opt.value = n.id;
-        opt.textContent = '🌐 ' + n.label;
+        opt.textContent = n.label;
         redePicker.appendChild(opt);
       });
       redePicker.addEventListener('change', () => {
@@ -478,6 +464,21 @@ body.topo-fullscreen #cy{ height:calc(100vh - 56px); border-radius:0; border-lef
                 <div class="tnc-ip">${escapeHtml(n.ip || '')}</div>
                 <div class="tnc-status tnc-status-${n.status}"><i class="tnc-dot"></i>${STATUS_LABEL[n.status] || 'DESCONHECIDO'}</div>
                 ${badges ? `<div class="tnc-badges">${badges}</div>` : ''}
+              </div>`;
+          }
+        }, {
+          query: 'node[kind="group"]',
+          halign: 'center', valign: 'center', halignBox: 'center', valignBox: 'center',
+          tpl: function(data){
+            const n = window.TOPO_NODES[data.id];
+            if (!n) return '';
+            return `
+              <div class="tng" data-node-id="${n.id}">
+                <span class="tng-ico" style="background:${n.color}22;color:${n.color}"><i class="bi ${n.icon}"></i></span>
+                <div class="tng-info">
+                  <div class="tng-label">${escapeHtml(n.label)}</div>
+                  <div class="tng-count">${n.count} ativo${n.count === 1 ? '' : 's'}</div>
+                </div>
               </div>`;
           }
         }]);
