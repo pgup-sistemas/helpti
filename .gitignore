@@ -1,0 +1,35 @@
+# Configurações locais com credenciais — nunca commitar
+config.local.php
+config.local.php.production
+.env
+
+# Uploads de usuários — preserva a estrutura de diretórios via .gitkeep
+uploads/**
+!uploads/.gitkeep
+!uploads/contratos/
+!uploads/contratos/.gitkeep
+!uploads/.htaccess
+
+# Cache e compilados
+__pycache__/
+*.pyc
+
+# Scans e dumps temporários — contêm topologia real da rede interna
+scan_rede_*.csv
+scan_ultimo.json
+storage/scans/scan_rede_*.csv
+storage/scans/scan_ultimo.json
+*.bak
+
+# Dumps de banco de dados — podem conter dados reais de usuários (hashes de senha, e-mails, PII)
+*.sql
+!database/migrations/*.sql
+
+# Logs de aplicação e arquivos arquivados localmente (fora do controle de versão)
+logs/**
+!logs/.gitkeep
+_local_arquivado/
+
+# Sistema
+.DS_Store
+Thumbs.db

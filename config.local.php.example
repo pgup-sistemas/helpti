@@ -1,0 +1,46 @@
+<?php
+// ============================================================
+// CONFIGURAÇÕES LOCAIS — copie para config.local.php e preencha
+// config.local.php está no .gitignore e nunca deve ser commitado
+// ============================================================
+return [
+    'DB_HOST'        => 'localhost',
+    'DB_NAME'        => 'seu_banco',
+    'DB_USER'        => 'seu_usuario',
+    'DB_PASS'        => 'sua_senha_aqui',
+
+    'APP_URL'        => 'https://helpti.seudominio.com.br',
+    'APP_EMAIL_FROM' => 'HelpTI <noreply@seudominio.com.br>',
+    'APP_EMAIL_REPLY'=> 'noreply@seudominio.com.br',
+
+    'DEBUG_MODE'     => false,
+
+    // Opcional — habilita "Classificar com IA" no portal público
+    'GEMINI_API_KEY' => '',
+
+    // Token para o endpoint de monitoramento health.php  (gere: openssl rand -hex 24)
+    'HEALTH_TOKEN'   => '',
+
+    // Token de instalação web — protege install.php e setup_admin.php
+    // Gere com: openssl rand -hex 20
+    // REMOVA esta linha (ou deixe vazio) após o deploy inicial.
+    'INSTALL_TOKEN'  => '',
+
+    // Desligar/reiniciar estações Windows pela rede (Ferramentas de TI).
+    // Requer o pacote `samba-common-bin` (comando `net`) no servidor e uma conta
+    // de administrador local/de domínio das estações. Deixe em branco p/ desabilitar.
+    // Nas estações: firewall liberando "Instrumentação de Gerenciamento do Windows (WMI)"
+    // ou compartilhamento admin (RPC/445), na rede local.
+    // -- Rede COM domínio (Active Directory): conta de domínio com admin nas estações
+    'SHUTDOWN_USER'       => '',    // ex: 'ti.suporte'
+    'SHUTDOWN_PASS'       => '',
+    'SHUTDOWN_DOMAIN'     => '',    // nome NetBIOS, ex: 'ALPHACORP'  (vazio se não houver domínio)
+
+    // -- Rede SEM domínio (WORKGROUP): mesmo admin LOCAL em todas as estações.
+    //    Requer, uma vez por estação (ou via GPO):
+    //    reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Policies\System" ^
+    //        /v LocalAccountTokenFilterPolicy /t REG_DWORD /d 1 /f
+    //    (a conta interna "Administrador" (RID 500) dispensa esse ajuste)
+    'SHUTDOWN_LOCAL_USER' => '',    // ex: 'Administrador'
+    'SHUTDOWN_LOCAL_PASS' => '',
+];
