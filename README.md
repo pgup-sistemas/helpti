@@ -1,6 +1,6 @@
 # 🖥️ HelpTI
 
-Sistema de gestão de TI para clínica — chamados, inventário, impressoras (com monitoramento SNMP), suprimentos com controle de estoque, contratos, manutenções e hosts de rede. PHP 8.3 + MySQL, sem framework.
+Sistema de gestão de chamados, inventário, impressoras (com monitoramento SNMP), suprimentos com controle de estoque, contratos, manutenções e hosts de rede. PHP 8.3 + MySQL, sem framework.
 
 ---
 
